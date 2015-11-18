@@ -3,6 +3,8 @@
 import collections  # for named tuple
 import re  # for regex
 from enum import Enum # for enumerations (enum from C)
+import logging # for logging functions
+import colorlog # colors log output
 
 ##########################################################################
 # type definitions
@@ -132,6 +134,9 @@ def print_token_by_line(v):
 
 ##########################################################################
 #   MAIN
+
+colorlog.basicConfig(level=logging.DEBUG)
+logging.info("Reading input file")
 
 with open("input.txt") as file_in:
     lines = "".join(file_in.readlines());
