@@ -19,6 +19,12 @@ class RuleType(Enum):
 
 #end class RuleType
 
+ruleNames = {
+        RuleType.evolution : '->',
+        RuleType.communication : '<->',
+        RuleType.conditional : '/',
+}
+
 # tuple used to describe parsed data
 Token = collections.namedtuple('Token', ['type', 'value', 'line', 'column'])
 
@@ -141,14 +147,50 @@ def print_token_by_line(v):
         print(token.value, end=" ");
 #end print_token_by_line
 
+def print_colony_components(colony):
+    """Prints the given Pcolony as a tree, to aid in inspecting the internal structure of the parsed colony
+
+    :colony: Pcolony type object used as input
+
+    """
+
+    print("Pcolony = {")
+    print("    A = %s" % colony.A)
+    print("    e = %s" % colony.e)
+    print("    f = %s" % colony.f)
+    print("    n = %s" % colony.n)
+    print("    B = %s" % colony.B)
+    for ag_name in colony.B:
+        print("        %s = (" % ag_name);
+        # print out only a:3 b:5 (None is used for printing all objects, not just the most common n)
+        print("             obj = %s" % colony.agents[ag_name].obj.most_common(None))
+        print("             programs = (")
+        for i, program in enumerate(colony.agents[ag_name].programs):
+            print("                 P%d = <" % i)
+            for rule in program:
+                if (rule.main_type != RuleType.conditional):
+                    print("                     %s %s %s" % (rule.lhs, ruleNames[rule.main_type], rule.rhs))
+                else:
+                    print("                     (%s %s %s) / (%s %s %s)" % (
+                        rule.lhs, ruleNames[rule.type], rule.rhs,
+                        rule.alt_lhs, ruleNames[rule.alt_type], rule.alt_rhs,))
+            print("                 >")
+
+        print("             )")
+
+        print("        )")
+    print("}")
+
+#end print_colony_components()
 
 def process_tokens(tokens, parent, index):
-    """Process tokens recurently and return a P colony structure
+    """Process tokens recurently and return a P colony structure (or a subcomponent of the same type as parent)
 
-    :tokens: TODO
-    :parent_type: TODO
-    :index: TODO
-    :returns: TODO
+    :tokens: the list of tokens to be processed
+    :parent: an object that represents the type of the result
+    :index: the start index in the list of tokens
+    :returns: index - the current index in the token list (after finishing this component)
+    :returns: result - an object that is the result of processing the input parent and tokens
     
     """
     
