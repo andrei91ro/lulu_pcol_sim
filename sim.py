@@ -38,6 +38,7 @@ class Pcolony:
         self.e = '' # elementary object
         self.f = '' # final object
         self.n = 0   # capacity
+        self.env = collections.Counter() # store objects found in the environement
         self.B = []  # agents (list of Agent type objects)
         self.agents = {} # agent dictionary (agent_name : Agent_object)
     #end __init__
@@ -159,6 +160,8 @@ def print_colony_components(colony):
     print("    e = %s" % colony.e)
     print("    f = %s" % colony.f)
     print("    n = %s" % colony.n)
+    # print out only a:3 b:5 (None is used for printing all objects, not just the most common n)
+    print("    env = %s" % colony.env.most_common(None))
     print("    B = %s" % colony.B)
     for ag_name in colony.B:
         print("        %s = (" % ag_name);
@@ -222,6 +225,11 @@ def process_tokens(tokens, parent, index):
                 elif (prev_token.value == 'n'):
                     logging.info("setting value");
                     index, result.n = process_tokens(tokens, result.n, index + 1);
+                
+                elif (prev_token.value == 'env'):
+                    logging.info("building list");
+                    index, objects = process_tokens(tokens, list(), index + 1);
+                    result.env = collections.Counter(objects)
                 
                 elif (prev_token.value == 'B'):
                     logging.info("building list");
