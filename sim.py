@@ -33,6 +33,7 @@ class Pcolony:
         self.f = '' # final object
         self.n = 0   # capacity
         self.B = []  # agents (list of Agent type objects)
+        self.agents = {} # agent dictionary (agent_name : Agent_object)
     #end __init__
 
     # TODO add specialized functions
@@ -68,9 +69,17 @@ class Rule():
 
     # constructor (members are defined inside in order to avoid alteration caused by other objects of this type)
     def __init__(self):
-        self.rule_type = 0 
+        # all *type members take values from RuleType
+        self.main_type = 0 # used to distinguish a conditional (composed) rule from simple rules
+        
+        self.type = 0 
         self.lhs = '' # Left Hand Side operand
         self.rhs = '' # Right Hand Side operand
+        
+        # used only for conditional rules
+        self.alt_type = 0
+        self.alt_lhs = '' # Left Hand Side operand for alternative rule
+        self.alt_rhs = '' # Right Hand Side operand for alternative rule
 #end class Rule
 
 ##########################################################################
@@ -79,27 +88,27 @@ def tokenize(code):
     """ generate a token list of input text
         adapted from https://docs.python.org/3/library/re.html#writing-a-tokenizer"""
     token_specification = [
-                ('NUMBER',        r'\d+'),         # Integer number
-                ('ASSIGN',        r'='),           # Assignment operator '='
-                ('END',           r';'),           # Statement terminator ';'
-                ('ID',            r'\w+'),         # Identifiers
-                ('L_BRACE',       r'\('),          # Left brace '('
-                ('R_BRACE',       r'\)'),          # Right brace ')'
-                ('L_CURLY_BRACE', r'{'),           # Left curly brace '{'
-                ('R_CURLY_BRACE', r'}'),           # Right curly brace '}'
-                ('COLUMN',        r','),           # column ','
+        ('NUMBER',        r'\d+'),         # Integer number
+        ('ASSIGN',        r'='),           # Assignment operator '='
+        ('END',           r';'),           # Statement terminator ';'
+        ('ID',            r'\w+'),         # Identifiers
+        ('L_BRACE',       r'\('),          # Left brace '('
+        ('R_BRACE',       r'\)'),          # Right brace ')'
+        ('L_CURLY_BRACE', r'{'),           # Left curly brace '{'
+        ('R_CURLY_BRACE', r'}'),           # Right curly brace '}'
+        ('COLUMN',        r','),           # column ','
 
         #order counts here (the more complex rules go first)
         ('COMMUNICATION', r'<->'),         # Communication rule sign '<->'
-                ('EVOLUTION',     r'->'),          # Evolution rule sign '->'
+        ('EVOLUTION',     r'->'),          # Evolution rule sign '->'
         ('SMALLER',       r'<'),           # Smaller sign '<'
-                ('LARGER',        r'>'),           # Larger sign '>'
+        ('LARGER',        r'>'),           # Larger sign '>'
 
-                ('CHECK_SIGN',    r'/'),           # Checking rule separator '/'
-                ('NEWLINE',       r'\n'),          # Line endings
-                ('SKIP',          r'[ \t]+'),      # Skip over spaces and tabs
-                ('MISMATCH',      r'.'),           # Any other character
-        ]
+        ('CHECK_SIGN',    r'/'),           # Checking rule separator '/'
+        ('NEWLINE',       r'\n'),          # Line endings
+        ('SKIP',          r'[ \t]+'),      # Skip over spaces and tabs
+        ('MISMATCH',      r'.'),           # Any other character
+    ]
         # join all groups into one regex expr; ex:?P<NUMBER>\d+(\.\d*)?) | ...
     tok_regex = '|'.join('(?P<%s>%s)' % pair for pair in token_specification)
     line_num = 1
@@ -146,7 +155,8 @@ def process_tokens(tokens, parent, index):
     logging.warning("process_tokens (parent_type = %s, index = %d)" % (type(parent), index))
     result = parent # construct the result of specified type
     prev_token = tokens[index]
-
+    rule = Rule() # dirty workaround to parsing rules recursively
+    
     while (index < len(tokens)):
         token = tokens[index]
         logging.debug("token = '%s'" % token.value)
@@ -154,31 +164,103 @@ def process_tokens(tokens, parent, index):
         if (type(parent) == Pcolony):
             # process the following tokens as members of a Pcolony class
             logging.warning("processing as Pcolony")
-            if (token.type == 'ASSIGN' and prev_token.value == 'A'):
-                logging.info("building list");
-                index, result.A = process_tokens(tokens, result.A, index + 1);
-            elif (token.type == 'ASSIGN' and prev_token.value == 'e'):
-                logging.info("setting value");
-                index, result.e = process_tokens(tokens, result.e, index + 1);
-            elif (token.type == 'ASSIGN' and prev_token.value == 'f'):
-                logging.info("setting value");
-                index, result.f = process_tokens(tokens, result.f, index + 1);
-            elif (token.type == 'ASSIGN' and prev_token.value == 'n'):
-                logging.info("setting value");
-                index, result.n = process_tokens(tokens, result.n, index + 1);
-            elif (token.type == 'ASSIGN' and prev_token.value == 'B'):
-                logging.info("building list");
-                index, result.B = process_tokens(tokens, result.B, index + 1);
-        
+            if (token.type == 'ASSIGN'):
+                if (prev_token.value == 'A'):
+                    logging.info("building list");
+                    index, result.A = process_tokens(tokens, result.A, index + 1);
+                
+                elif (prev_token.value == 'e'):
+                    logging.info("setting value");
+                    index, result.e = process_tokens(tokens, result.e, index + 1);
+                
+                elif (prev_token.value == 'f'):
+                    logging.info("setting value");
+                    index, result.f = process_tokens(tokens, result.f, index + 1);
+                
+                elif (prev_token.value == 'n'):
+                    logging.info("setting value");
+                    index, result.n = process_tokens(tokens, result.n, index + 1);
+                
+                elif (prev_token.value == 'B'):
+                    logging.info("building list");
+                    index, result.B = process_tokens(tokens, result.B, index + 1);
+                
+                # if the previout token was an agent name found in B
+                elif (prev_token.value in result.B):
+                    logging.info("constructing agent");
+                    index, agent = process_tokens(tokens, Agent(), index + 1);
+                    result.agents[prev_token.value] = agent # store newly parsed agent indexed by name
+
         elif (type(parent) == Agent):
             logging.warning("processing as Agent")
             # process the following tokens as members of an Agent class
-            pass
+            
+            # agent object lists are separated with curly braces
+            if (token.type == 'L_CURLY_BRACE'):
+                logging.info("building object counter from object list");
+                index, objects = process_tokens(tokens, list(), index + 1);
+                result.obj = collections.Counter(objects)
+            
+            # agent programs start with '<'
+            if (token.type == 'SMALLER'):
+                logging.info("building program");
+                index, program = process_tokens(tokens, Program(), index + 1);
+                result.programs.append(program)
         
-        elif (type(parent) == Rule):
-            logging.warning("processing as Rule")
-            # process the following tokens as members of an Rule class
-            pass
+        elif (type(parent) == Program):
+            logging.warning("processing as Program")
+            # process the following tokens as members of an Program class 
+            
+            # if i reached the end of a rule definition
+            if (token.type == 'COLUMN'):
+                logging.info("Added new rule")
+                # if the main type of the rule is not set (i.e it was not declared as a conditional rule)
+                if (rule.main_type == 0):
+                    rule.main_type = rule.type
+                # append the new rule to the program
+                result.append(rule);
+                rule = Rule() # re-initialize the rule object used for rule building
+            
+            elif (token.type == 'LARGER'):
+                logging.info("finishing Program")
+                # if the main type of the rule is not set (i.e it was not declared as a conditional rule)
+                if (rule.main_type == 0):
+                    rule.main_type = rule.type
+                # append the new rule to the program
+                result.append(rule);
+                logging.info("finished this program with result = %s" % result)
+                return index, result;
+            
+            else:
+                # if this is not a conditional rule
+                if (rule.main_type != RuleType.conditional):
+                    if (token.type == 'ID'):
+                            #if the left hand side of the rule is unfilled
+                            if (rule.lhs == ''):
+                                rule.lhs = token.value
+                            else:
+                                rule.rhs = token.value
+                    elif (token.type == 'EVOLUTION'):
+                        rule.type = RuleType.evolution
+                    elif (token.type == 'COMMUNICATION'):
+                        rule.type = RuleType.communication
+                    elif (token.type == 'CHECK_SIGN'):
+                        rule.main_type = RuleType.conditional
+                
+                # if this is a conditional rule then use the alternate fields
+                else:
+                    if (token.type == 'ID'):
+                        #if the left hand side of the rule is unfilled
+                        if (rule.alt_lhs == ''):
+                            rule.alt_lhs = token.value
+                        else:
+                            rule.alt_rhs = token.value
+                    elif (token.type == 'EVOLUTION'):
+                        rule.alt_type = RuleType.evolution
+                    elif (token.type == 'COMMUNICATION'):
+                        rule.alt_type = RuleType.communication
+                    elif (token.type == 'CHECK_SIGN'):
+                        rule.main_type = RuleType.conditional
         
         elif (type(parent) == list):
             logging.warning("processing as List")
@@ -201,7 +283,6 @@ def process_tokens(tokens, parent, index):
             if (token.type == 'ASSIGN' and prev_token.value == 'pi'): 
                 index, result = process_tokens(tokens, Pcolony(), index + 1);
 
-        #if (token.type == 'ID' and prev_token):
         if (token.type == 'END'):
             logging.info("finished this block with result = %s" % result)
             return index, result;
