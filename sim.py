@@ -5,6 +5,7 @@ import re  # for regex
 from enum import Enum # for enumerations (enum from C)
 import logging # for logging functions
 import colorlog # colors log output
+import random # for stochastic chosing of programs
 
 ##########################################################################
 # type definitions
@@ -18,6 +19,15 @@ class RuleType(Enum):
     conditional = 3
 
 #end class RuleType
+
+class RuleExecOption(Enum):
+
+    """Enumeration of rule selection options (used mainly for marking the executable rule from a conditional rule)"""
+    
+    none = 1
+    first = 2
+    second = 3
+#end class RuleExecOption
 
 ruleNames = {
         RuleType.evolution : '->',
@@ -44,6 +54,40 @@ class Pcolony:
     #end __init__
 
     # TODO add specialized functions
+    # TODO describe_colony
+    
+    def print_colony_components(self):
+        """Prints the given Pcolony as a tree, to aid in inspecting the internal structure of the parsed colony
+
+        :colony: Pcolony type object used as input
+
+        """
+
+        print("Pcolony = {")
+        print("    A = %s" % self.A)
+        print("    e = %s" % self.e)
+        print("    f = %s" % self.f)
+        print("    n = %s" % self.n)
+        # print out only a:3 b:5 (None is used for printing all objects, not just the most common n)
+        print("    env = %s" % self.env.most_common(None))
+        print("    B = %s" % self.B)
+        for ag_name in self.B:
+            print("        %s = (" % ag_name);
+            # print out only a:3 b:5 (None is used for printing all objects, not just the most common n)
+            print("             obj = %s" % self.agents[ag_name].obj.most_common(None))
+            print("             programs = (")
+            for i, program in enumerate(self.agents[ag_name].programs):
+                print("                 P%d = <" % i)
+                for rule in program:
+                    rule.print(indentSpaces = 21)
+                print("                 >")
+
+            print("             )")
+
+            print("        )")
+        print("}")
+
+    #end print_colony_components()
 #end class Pcolony
 
 class Agent:
@@ -54,11 +98,86 @@ class Agent:
     def __init__(self):
         self.obj = collections.Counter() # objects stored by the agent (stored as a multiset thanks to Counter) 
         self.programs = [] # programs (list of programs (each program is a list of n  Rule objects))
+        self.chosenProgramNr = -1 # the program that was chosen for execution
     #end __init__()
 
-    def ChoseProgram(self):
-        pass #TODO chose an executable program (or chose stochastically from a list of executable programs)
-    #end ChoseProgram()
+    def choseProgram(self, env):
+        """Chose an executable program (or chose stochastically from a list of executable programs)
+        : env - the objects from the environement
+        : returns True / False depending on the availability of an executable program"""
+       
+        possiblePrograms = [] # used to store executable programs
+        for nr, program in enumerate(self.programs):
+           
+            logging.debug("checking program %d of %d" % (nr, len(self.programs)))
+            executable = True
+            for rule in program:
+                
+                # if rule is a simple, non-conditional rule
+                if (rule.main_type != RuleType.conditional):
+                    
+                    # all types of rules require the left hand side obj to be available in the agent
+                    if (rule.lhs not in self.obj):
+                        executable = False;
+                        break; # stop checking
+                    
+                    # communication rules require the right hand side obj to be available in the environement
+                    if (rule.main_type == RuleType.communication and rule.rhs not in env):
+                        executable = False;
+                        break;
+
+                    rule.exec_rule_nr = RuleExecOption.first # the only option available
+                
+                # if this is a conditional rule
+                else:
+                    # all types of rules require the left hand side obj to be available in the agent
+                    # if not in the prioritary rule then at least in the alternative rule
+                    if ((rule.lhs not in self.obj) and (rule.alt_lhs not in self.obj)):
+                        executable = False;
+                        break; # stop checking
+                    #if the first rule is of communication type and the right hand side object is not in the environement
+                    if (rule.type == RuleType.communication and rule.rhs not in env):
+                        # the first rule cannot be executed so we check the second rule
+
+                        # if the second rule is of communication type then the right hand side object has to be in the environement
+                        if (rule.alt_type == RuleType.communication and rule.alt_rhs not in env):
+                            executable = False;
+                            break;
+
+                       # the second rule can be executed (and the first cannot)
+                        else:
+                           rule.exec_rule_nr = RuleExecOption.second # mark the second rule as executable
+                             
+                    # the first rule can be executed
+                    else:
+                        rule.exec_rule_nr = RuleExecOption.first # mark the first rule as executable
+                
+            #end for rule
+
+            if (executable):
+                possiblePrograms.append(nr)
+        #end for program
+        
+        logging.debug("possiblePrograms = %s" % possiblePrograms)
+        # if there is only 1 executable program
+        if (len(possiblePrograms) == 1):
+            self.chosenProgramNr = possiblePrograms[0];
+            logging.info("chosen_program =  %d", self.chosenProgramNr)
+            return True; # this agent has an executable program
+        
+        # there is more than 1 executable program
+        elif (len(possiblePrograms) > 1):
+            rand_value = random.randint(0, len(possiblePrograms) - 1) 
+            self.chosenProgramNr = possiblePrograms[rand_value];
+            logging.info("stochastically_chosen_program =  %d", self.chosenProgramNr)
+            return True; # this agent has an executable program
+
+        self.chosenProgramNr = -1 # no program can be executed
+        logging.info("no executable program")
+        return False 
+            
+    #end choseProgram()
+
 #end class Agent
 
 class Program(list):
@@ -78,7 +197,8 @@ class Rule():
     def __init__(self):
         # all *type members take values from RuleType
         self.main_type = 0 # used to distinguish a conditional (composed) rule from simple rules
-        
+        self.exec_rule_nr = RuleExecOption.none
+
         self.type = 0 
         self.lhs = '' # Left Hand Side operand
         self.rhs = '' # Right Hand Side operand
@@ -87,6 +207,29 @@ class Rule():
         self.alt_type = 0
         self.alt_lhs = '' # Left Hand Side operand for alternative rule
         self.alt_rhs = '' # Right Hand Side operand for alternative rule
+
+    def print(self, indentSpaces = 2, onlyExecutable = False) :
+        """Print a rule with a given indentation level
+
+        :indentSpaces: number of spaces used for indentation
+        :onlyExecutable: print the rule only if it is marked as executable"""
+
+        if (self.main_type != RuleType.conditional):
+            # print only if the onlyExecutable filter is not applied, or if applied and the rule is marked as executable
+            if ( (not onlyExecutable) or (self.exec_rule_nr == RuleExecOption.first)):
+                print(" " * indentSpaces + "%s %s %s" % (self.lhs, ruleNames[self.main_type], self.rhs))
+        else:
+            # if the onlyExecutable filter is not applied, print the entire conditional rule
+            if (not onlyExecutable):
+                print(" " * indentSpaces + "(%s %s %s) / (%s %s %s)" % (
+                    self.lhs, ruleNames[self.type], self.rhs,
+                    self.alt_lhs, ruleNames[self.alt_type], self.alt_rhs))
+            else:
+                # print only the executable component of the conditional rule
+                if (self.exec_rule_nr == RuleExecOption.first):
+                    print(" " * indentSpaces + "%s %s %s" % (self.lhs, ruleNames[self.type], self.rhs))
+                else:
+                    print(" " * indentSpaces + "%s %s %s" % (self.rhs, ruleNames[self.alt_type], self.rhs))
 #end class Rule
 
 ##########################################################################
@@ -148,44 +291,6 @@ def print_token_by_line(v):
         print(token.value, end=" ");
 #end print_token_by_line
 
-def print_colony_components(colony):
-    """Prints the given Pcolony as a tree, to aid in inspecting the internal structure of the parsed colony
-
-    :colony: Pcolony type object used as input
-
-    """
-
-    print("Pcolony = {")
-    print("    A = %s" % colony.A)
-    print("    e = %s" % colony.e)
-    print("    f = %s" % colony.f)
-    print("    n = %s" % colony.n)
-    # print out only a:3 b:5 (None is used for printing all objects, not just the most common n)
-    print("    env = %s" % colony.env.most_common(None))
-    print("    B = %s" % colony.B)
-    for ag_name in colony.B:
-        print("        %s = (" % ag_name);
-        # print out only a:3 b:5 (None is used for printing all objects, not just the most common n)
-        print("             obj = %s" % colony.agents[ag_name].obj.most_common(None))
-        print("             programs = (")
-        for i, program in enumerate(colony.agents[ag_name].programs):
-            print("                 P%d = <" % i)
-            for rule in program:
-                if (rule.main_type != RuleType.conditional):
-                    print("                     %s %s %s" % (rule.lhs, ruleNames[rule.main_type], rule.rhs))
-                else:
-                    print("                     (%s %s %s) / (%s %s %s)" % (
-                        rule.lhs, ruleNames[rule.type], rule.rhs,
-                        rule.alt_lhs, ruleNames[rule.alt_type], rule.alt_rhs,))
-            print("                 >")
-
-        print("             )")
-
-        print("        )")
-    print("}")
-
-#end print_colony_components()
-
 def process_tokens(tokens, parent, index):
     """Process tokens recurently and return a P colony structure (or a subcomponent of the same type as parent)
 
@@ -229,6 +334,9 @@ def process_tokens(tokens, parent, index):
                 elif (prev_token.value == 'env'):
                     logging.info("building list");
                     index, objects = process_tokens(tokens, list(), index + 1);
+                    # make sure that 1 simbolic e object is in env
+                    if (result.e not in objects):
+                        objects.append(result.e)
                     result.env = collections.Counter(objects)
                 
                 elif (prev_token.value == 'B'):
@@ -378,5 +486,7 @@ print_token_by_line(tokens);
 
 print("\n\n");
 index, end_result = process_tokens(tokens, None, 0)
+print("\n\n");
+end_result.print_colony_components()
 
 print("\n\n");
