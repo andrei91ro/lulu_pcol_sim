@@ -6,7 +6,7 @@ from enum import Enum # for enumerations (enum from C)
 import logging # for logging functions
 import colorlog # colors log output
 import random # for stochastic chosing of programs
-
+import time # for time.time()
 ##########################################################################
 # type definitions
 
@@ -28,6 +28,15 @@ class RuleExecOption(Enum):
     first = 2
     second = 3
 #end class RuleExecOption
+
+class SimStepResult(Enum):
+
+    """Enumeration of possible results of running a simulation step"""
+
+    finished = 1
+    no_more_executables = 2
+    error = 3
+#end class SimStepResult
 
 ruleNames = {
         RuleType.evolution : '->',
@@ -91,7 +100,8 @@ class Pcolony:
 
     def runSimulationStep(self):
         """Runs 1 simulation step consisting of chosing (if available) and executing a program for each agent in the colony
-        :returns: True / False depending on the succes of the current run """
+        
+        :returns: SimStepResult values depending on the succes of the current run """
         
         runnableAgents = [] # the list of agents that have an executable program
 
@@ -105,18 +115,72 @@ class Pcolony:
         
         # if there are no runnable agents
         if (len(runnableAgents) == 0):
-            return False # simulation cannot continue
+            return SimStepResult.no_more_executables # simulation cannot continue
 
         for agent_name in runnableAgents:
             logging.debug("Running %s agent program nr %d" % (agent_name, self.agents[agent_name].chosenProgramNr))
             # if there were errors encountered during program execution
             if (self.agents[agent_name].executeProgram() == False):
                 logging.error("Execution failed for agent %s, stopping simulation" % agent_name)
-                return False
+                return SimStepResult.error
 
         logging.info("Simulation step finished succesfully")
-        return True
+        return SimStepResult.finished
     # end runSimulationStep()
+
+    def simulate(self, stepByStepConfirm = False, printEachColonyState = True, maxSteps = -1, maxTime = -1):
+        """Simulates the Pcolony until there are no more programs to execute or one of the imposed limits is reached
+
+        :stepByStepConfirm: True / False - whether or not to wait for confirmation before starting the next simulation step
+        :maxSteps: The maximmum number of simulation steps to run
+        :maxTime: The maximum time span that the entire simulation can last
+        :returns: True / False depending on the succesfull finish of the simulation before reaching any of the limits"""
+
+        currentStep = 0;
+        startTime = currentTime = time.time();
+         # time.time() == time in seconds since the Epoch
+        finalTime = currentTime + maxTime
+        
+        while (True):
+            logging.info("Starting simulation step %d", currentStep)
+            
+            simResult = self.runSimulationStep()
+            currentTime = time.time()
+
+            if (printEachColonyState):
+                self.print_colony_components()
+
+            if (stepByStepConfirm):
+                input("Press ENTER to continue")
+
+            # if the simulation stopped because there are no more executable programs
+            if (simResult == SimStepResult.no_more_executables):
+                break; # exit the loop
+
+            # if there was an error encountered during this simulation step
+            if (simResult == SimStepResult.error):
+                logging.error("Error encountered")
+                return False # stop the simulation and mark it as failed
+            
+            # if there is a maximum time limit set and it was exceded
+            if ((currentTime >= finalTime) and (maxTime > 0)):
+                logging.warning("Maximum time limit exceeded; Simulation stopped")
+                return False # stop the simulation and mark it as failed
+            
+            # if there is a maximum step limit set and it was exceded
+            if ((currentStep >= maxSteps) and (maxSteps > 0)):
+                logging.warning("Maximum number of simulation steps exceeded; Simulation stopped")
+                return False # stop the simulation and mark it as failed
+
+            currentStep += 1
+        #end while loop
+
+        logging.info("Simulation finished succesfully after %d steps and %f seconds; End state below:" % (currentStep, currentTime - startTime))
+        self.print_colony_components()
+        
+        # if the simulation reaches this step it means that the it finished succesfully
+        return True
+    # end simulate()
 #end class Pcolony
 
 class Agent:
