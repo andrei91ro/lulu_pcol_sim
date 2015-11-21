@@ -88,6 +88,35 @@ class Pcolony:
         print("}")
 
     #end print_colony_components()
+
+    def runSimulationStep(self):
+        """Runs 1 simulation step consisting of chosing (if available) and executing a program for each agent in the colony
+        :returns: True / False depending on the succes of the current run """
+        
+        runnableAgents = [] # the list of agents that have an executable program
+
+        for agent_name, agent in self.agents.items():
+            # if the agent choses 1 program to execute
+            if (agent.choseProgram()):
+                logging.debug("Agent %s is runnable" % agent_name)
+                runnableAgents.append(agent_name)
+        
+        logging.info("%d runnable agents" % len(runnableAgents))
+        
+        # if there are no runnable agents
+        if (len(runnableAgents) == 0):
+            return False # simulation cannot continue
+
+        for agent_name in runnableAgents:
+            logging.debug("Running %s agent program nr %d" % (agent_name, self.agents[agent_name].chosenProgramNr))
+            # if there were errors encountered during program execution
+            if (self.agents[agent_name].executeProgram() == False):
+                logging.error("Execution failed for agent %s, stopping simulation" % agent_name)
+                return False
+
+        logging.info("Simulation step finished succesfully")
+        return True
+    # end runSimulationStep()
 #end class Pcolony
 
 class Agent:
@@ -163,14 +192,14 @@ class Agent:
         # if there is only 1 executable program
         if (len(possiblePrograms) == 1):
             self.chosenProgramNr = possiblePrograms[0];
-            logging.info("chosen_program =  %d", self.chosenProgramNr)
+            logging.info("chosen_program =  %d" % self.chosenProgramNr)
             return True; # this agent has an executable program
         
         # there is more than 1 executable program
         elif (len(possiblePrograms) > 1):
             rand_value = random.randint(0, len(possiblePrograms) - 1) 
             self.chosenProgramNr = possiblePrograms[rand_value];
-            logging.info("stochastically_chosen_program =  %d", self.chosenProgramNr)
+            logging.info("stochastically_chosen_program =  %d" % self.chosenProgramNr)
             return True; # this agent has an executable program
 
         self.chosenProgramNr = -1 # no program can be executed
@@ -208,7 +237,7 @@ class Agent:
                     # if the rule.rhs object is not in the environement any more
                     if (self.colony.env[rule.rhs] <= 0):
                         # this is an error, some other agent modified the environement
-                        logging.error("Object %s was required in the environement by rule %s but was not found", rule.rhs, rule.print(toString = True))
+                        logging.error("Object %s was required in the environement by rule %s but was not found" % (rule.rhs, rule.print(toString = True)))
                         logging.error("Please check your rules and try again")
                         return False
                     
@@ -250,7 +279,7 @@ class Agent:
                     # if the rule.alt_rhs object is not in the environement any more
                     if (self.colony.env[rule.alt_rhs] <= 0):
                         # this is an error, some other agent modified the environement
-                        logging.error("Object %s was required in the environement by rule %s but was not found", rule.alt_rhs, rule.print(toString = True))
+                        logging.error("Object %s was required in the environement by rule %s but was not found" % (rule.alt_rhs, rule.print(toString = True)))
                         logging.error("Please check your rules and try again")
                         return False
                     
