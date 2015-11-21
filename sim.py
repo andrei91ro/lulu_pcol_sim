@@ -95,13 +95,14 @@ class Agent:
     """Agent class used to represent a P colony agent."""
 
     # constructor (members are defined inside in order to avoid alteration caused by other objects of this type)
-    def __init__(self):
+    def __init__(self, parent_colony):
         self.obj = collections.Counter() # objects stored by the agent (stored as a multiset thanks to Counter) 
         self.programs = [] # programs (list of programs (each program is a list of n  Rule objects))
         self.chosenProgramNr = -1 # the program that was chosen for execution
     #end __init__()
+        self.colony = parent_colony # reference to my parent colony (for acces to env, e, ...)
 
-    def choseProgram(self, env):
+    def choseProgram(self):
         """Chose an executable program (or chose stochastically from a list of executable programs)
         : env - the objects from the environement
         : returns True / False depending on the availability of an executable program"""
@@ -122,7 +123,7 @@ class Agent:
                         break; # stop checking
                     
                     # communication rules require the right hand side obj to be available in the environement
-                    if (rule.main_type == RuleType.communication and rule.rhs not in env):
+                    if (rule.main_type == RuleType.communication and rule.rhs not in self.colony.env):
                         executable = False;
                         break;
 
@@ -136,11 +137,11 @@ class Agent:
                         executable = False;
                         break; # stop checking
                     #if the first rule is of communication type and the right hand side object is not in the environement
-                    if (rule.type == RuleType.communication and rule.rhs not in env):
+                    if (rule.type == RuleType.communication and rule.rhs not in self.colony.env):
                         # the first rule cannot be executed so we check the second rule
 
                         # if the second rule is of communication type then the right hand side object has to be in the environement
-                        if (rule.alt_type == RuleType.communication and rule.alt_rhs not in env):
+                        if (rule.alt_type == RuleType.communication and rule.alt_rhs not in self.colony.env):
                             executable = False;
                             break;
 
@@ -178,9 +179,9 @@ class Agent:
             
     #end choseProgram()
     
-    def executeProgram(self, env):
+    def executeProgram(self):
         """Execute the selected program and modify the agent and the environement according to the rules
-        :returns: True / False """
+        :returns: True / False depending on the succesfull execution the program"""
 
         if (self.chosenProgramNr < 0):
             return False;
@@ -205,22 +206,29 @@ class Agent:
                 # if this is a communication rule
                 else:
                     # if the rule.rhs object is not in the environement any more
-                    if (env[rule.rhs] <= 0):
+                    if (self.colony.env[rule.rhs] <= 0):
                         # this is an error, some other agent modified the environement
                         logging.error("Object %s was required in the environement by rule %s but was not found", rule.rhs, rule.print(toString = True))
                         logging.error("Please check your rules and try again")
                         return False
-                    # remove one instance of rule.rhs from env
-                    env[rule.rhs] -= 1;
-                    # 0 counts are allowed so if this is the case
-                    if (env[rule.rhs] == 0):
-                        # remove the entry from the env counter
-                        del env[rule.rhs]
+                    
+                    # remove one instance of rule.rhs from env only if it not 'e'
+                    # 'e' object should remain constant in the environment
+                    if (rule.rhs != self.colony.e):
+                        # remove one instance of rule.rhs from env
+                        self.colony.env[rule.rhs] -= 1;
+                        # 0 counts are allowed so if this is the case
+                        if (self.colony.env[rule.rhs] == 0):
+                            # remove the entry from the env counter
+                            del self.colony.env[rule.rhs]
 
                     # transfer object from environment to agent.obj
                     self.obj[rule.rhs] += 1
-                    # transfer object from agent.obj to environment
-                    env[rule.lhs] += 1
+                   
+                    # only modify the environment if the lhs object is not e
+                    if (rule.lhs != self.colony.e): 
+                        # transfer object from agent.obj to environment
+                        self.colony.env[rule.lhs] += 1
             
             # if this is a conditional rule and the second rule was chosen for execution
             elif (rule.exec_rule_nr == RuleExecOption.second):
@@ -240,22 +248,29 @@ class Agent:
                 # if this is a communication rule
                 else:
                     # if the rule.alt_rhs object is not in the environement any more
-                    if (env[rule.alt_rhs] <= 0):
+                    if (self.colony.env[rule.alt_rhs] <= 0):
                         # this is an error, some other agent modified the environement
                         logging.error("Object %s was required in the environement by rule %s but was not found", rule.alt_rhs, rule.print(toString = True))
                         logging.error("Please check your rules and try again")
                         return False
-                    # remove one instance of rule.alt_rhs from env
-                    env[rule.alt_rhs] -= 1;
-                    # 0 counts are allowed so if this is the case
-                    if (env[rule.alt_rhs] == 0):
-                        # remove the entry from the env counter
-                        del env[rule.alt_rhs]
+                    
+                    # remove one instance of rule.alt_rhs from env only if it not 'e'
+                    # 'e' object should remain constant in the environment
+                    if (rule.alt_rhs != self.colony.e):
+                        # remove one instance of rule.alt_rhs from env
+                        self.colony.env[rule.alt_rhs] -= 1;
+                        # 0 counts are allowed so if this is the case
+                        if (self.colony.env[rule.alt_rhs] == 0):
+                            # remove the entry from the env counter
+                            del self.colony.env[rule.alt_rhs]
 
                     # transfer object from environment to agent.obj
                     self.obj[rule.alt_rhs] += 1
-                    # transfer object from agent.obj to environment
-                    env[rule.alt_lhs] += 1
+                    
+                    # only modify the environment if the alt_lhs object is not e
+                    if (rule.alt_lhs != self.colony.e): 
+                        # transfer object from agent.obj to environment
+                        self.colony.env[rule.alt_lhs] += 1
             # end elif exec_rule_nr == second
         
         # rule execution finished succesfully
@@ -447,7 +462,7 @@ def process_tokens(tokens, parent, index):
                 # if the previout token was an agent name found in B
                 elif (prev_token.value in result.B):
                     logging.info("constructing agent");
-                    index, agent = process_tokens(tokens, Agent(), index + 1);
+                    index, agent = process_tokens(tokens, Agent(result), index + 1);
                     result.agents[prev_token.value] = agent # store newly parsed agent indexed by name
 
         elif (type(parent) == Agent):
