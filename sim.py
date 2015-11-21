@@ -177,7 +177,89 @@ class Agent:
         return False 
             
     #end choseProgram()
+    
+    def executeProgram(self, env):
+        """Execute the selected program and modify the agent and the environement according to the rules
+        :returns: True / False """
 
+        if (self.chosenProgramNr < 0):
+            return False;
+
+        program = self.programs[self.chosenProgramNr]
+        for rule in program:
+            # if this is a non-conditional or the first rule of a conditional rule was chosen
+            if (rule.exec_rule_nr == RuleExecOption.first):
+                
+                # remove one instance of rule.lhs from obj
+                # both evolution and communication need this part
+                self.obj[rule.lhs] -= 1;
+                # 0 counts are allowed so if this is the case
+                if (self.obj[rule.lhs] == 0):
+                    # remove the entry from the obj counter
+                    del self.obj[rule.lhs]
+                
+                if (rule.type == RuleType.evolution):
+                    # add the rule.rhs object to obj
+                    self.obj[rule.rhs] += 1
+                
+                # if this is a communication rule
+                else:
+                    # if the rule.rhs object is not in the environement any more
+                    if (env[rule.rhs] <= 0):
+                        # this is an error, some other agent modified the environement
+                        logging.error("Object %s was required in the environement by rule %s but was not found", rule.rhs, rule.print(toString = True))
+                        logging.error("Please check your rules and try again")
+                        return False
+                    # remove one instance of rule.rhs from env
+                    env[rule.rhs] -= 1;
+                    # 0 counts are allowed so if this is the case
+                    if (env[rule.rhs] == 0):
+                        # remove the entry from the env counter
+                        del env[rule.rhs]
+
+                    # transfer object from environment to agent.obj
+                    self.obj[rule.rhs] += 1
+                    # transfer object from agent.obj to environment
+                    env[rule.lhs] += 1
+            
+            # if this is a conditional rule and the second rule was chosen for execution
+            elif (rule.exec_rule_nr == RuleExecOption.second):
+
+                # remove one instance of rule.alt_lhs from obj
+                # both evolution and communication need this part
+                self.obj[rule.alt_lhs] -= 1;
+                # 0 counts are allowed so if this is the case
+                if (self.obj[rule.alt_lhs] == 0):
+                    # remove the entry from the obj counter
+                    del self.obj[rule.alt_lhs]
+                
+                if (rule.alt_type == RuleType.evolution):
+                    # add the rule.alt_rhs object to obj
+                    self.obj[rule.alt_rhs] += 1
+                
+                # if this is a communication rule
+                else:
+                    # if the rule.alt_rhs object is not in the environement any more
+                    if (env[rule.alt_rhs] <= 0):
+                        # this is an error, some other agent modified the environement
+                        logging.error("Object %s was required in the environement by rule %s but was not found", rule.alt_rhs, rule.print(toString = True))
+                        logging.error("Please check your rules and try again")
+                        return False
+                    # remove one instance of rule.alt_rhs from env
+                    env[rule.alt_rhs] -= 1;
+                    # 0 counts are allowed so if this is the case
+                    if (env[rule.alt_rhs] == 0):
+                        # remove the entry from the env counter
+                        del env[rule.alt_rhs]
+
+                    # transfer object from environment to agent.obj
+                    self.obj[rule.alt_rhs] += 1
+                    # transfer object from agent.obj to environment
+                    env[rule.alt_lhs] += 1
+            # end elif exec_rule_nr == second
+        
+        # rule execution finished succesfully
+        return True
 #end class Agent
 
 class Program(list):
@@ -208,28 +290,47 @@ class Rule():
         self.alt_lhs = '' # Left Hand Side operand for alternative rule
         self.alt_rhs = '' # Right Hand Side operand for alternative rule
 
-    def print(self, indentSpaces = 2, onlyExecutable = False) :
+    def print(self, indentSpaces = 2, onlyExecutable = False, toString = False) :
         """Print a rule with a given indentation level
 
         :indentSpaces: number of spaces used for indentation
         :onlyExecutable: print the rule only if it is marked as executable"""
+        
+        result = ""
 
         if (self.main_type != RuleType.conditional):
             # print only if the onlyExecutable filter is not applied, or if applied and the rule is marked as executable
             if ( (not onlyExecutable) or (self.exec_rule_nr == RuleExecOption.first)):
-                print(" " * indentSpaces + "%s %s %s" % (self.lhs, ruleNames[self.main_type], self.rhs))
+                if (toString):
+                    result = "%s %s %s" % (self.lhs, ruleNames[self.main_type], self.rhs)
+                else:
+                    print(" " * indentSpaces + "%s %s %s" % (self.lhs, ruleNames[self.main_type], self.rhs))
         else:
             # if the onlyExecutable filter is not applied, print the entire conditional rule
             if (not onlyExecutable):
-                print(" " * indentSpaces + "(%s %s %s) / (%s %s %s)" % (
-                    self.lhs, ruleNames[self.type], self.rhs,
-                    self.alt_lhs, ruleNames[self.alt_type], self.alt_rhs))
+                if (toString):
+                    result = "(%s %s %s) / (%s %s %s)" % (
+                        self.lhs, ruleNames[self.type], self.rhs,
+                        self.alt_lhs, ruleNames[self.alt_type], self.alt_rhs)
+                else:
+                    print(" " * indentSpaces + "(%s %s %s) / (%s %s %s)" % (
+                        self.lhs, ruleNames[self.type], self.rhs,
+                        self.alt_lhs, ruleNames[self.alt_type], self.alt_rhs))
             else:
                 # print only the executable component of the conditional rule
                 if (self.exec_rule_nr == RuleExecOption.first):
-                    print(" " * indentSpaces + "%s %s %s" % (self.lhs, ruleNames[self.type], self.rhs))
+                    if (toString):
+                        result = "%s %s %s" % (self.lhs, ruleNames[self.type], self.rhs)
+                    else:
+                        print(" " * indentSpaces + "%s %s %s" % (self.lhs, ruleNames[self.type], self.rhs))
                 else:
-                    print(" " * indentSpaces + "%s %s %s" % (self.rhs, ruleNames[self.alt_type], self.rhs))
+                    if (toString):
+                        result = "%s %s %s" % (self.rhs, ruleNames[self.alt_type], self.rhs)
+                    else:
+                        print(" " * indentSpaces + "%s %s %s" % (self.rhs, ruleNames[self.alt_type], self.rhs))
+        
+        return result
+    # end print()
 #end class Rule
 
 ##########################################################################
