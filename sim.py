@@ -662,40 +662,63 @@ def process_tokens(tokens, parent, index):
     return index, result
 #end process_tokens
 
+def readInputFile(filename, printTokens=False):
+    """Parses the given input file and produces a Pcolony tree structure
+
+    :filename: string path to the file that will be parsed
+    :returns: Pcolony tree structure (Pcolony, Agent, Program, Rule)
+
+    """
+    logging.info("Reading input file")
+
+    with open(filename) as file_in:
+        lines = "".join(file_in.readlines());
+
+    # construct array of tokens for later use
+    tokens = [token for token in tokenize(lines)];
+
+    if (printTokens):
+        print_token_by_line(tokens);
+        print("\n\n");
+
+    index, end_result = process_tokens(tokens, None, 0)
+
+    print("\n\n");
+    end_result.print_colony_components()
+    print("\n\n");
+
+    return end_result
+#end readInputFile()
 
 ##########################################################################
 #   MAIN
-formatter = colorlog.ColoredFormatter(
-        "%(log_color)s%(levelname)-8s %(message)s %(reset)s",
-        datefmt=None,
-        reset=True,
-        log_colors={
-                'DEBUG':    'cyan',
-                'INFO':     'green',
-                'WARNING':  'yellow',
-                'ERROR':    'red',
-                'CRITICAL': 'red,bg_white',
-        },
-        secondary_log_colors={},
-        style='%'
-)
-colorlog.basicConfig(level = logging.DEBUG)
-stream = colorlog.root.handlers[0]
-stream.setFormatter(formatter);
+if (__name__ == "__main__"):
+    import sys # for argv
 
-logging.info("Reading input file")
+    formatter = colorlog.ColoredFormatter(
+            "%(log_color)s%(levelname)-8s %(message)s %(reset)s",
+            datefmt=None,
+            reset=True,
+            log_colors={
+                    'DEBUG':    'cyan',
+                    'INFO':     'green',
+                    'WARNING':  'yellow',
+                    'ERROR':    'red',
+                    'CRITICAL': 'red,bg_white',
+            },
+            secondary_log_colors={},
+            style='%'
+    )
+    colorlog.basicConfig(level = logging.DEBUG)
+    stream = colorlog.root.handlers[0]
+    stream.setFormatter(formatter);
 
-with open("input.txt") as file_in:
-    lines = "".join(file_in.readlines());
+    if (len(sys.argv) != 2):
+        logging.error("Expected input file path as parameter")
+        exit(1)
 
-# construct array of tokens for later use
-tokens = [token for token in tokenize(lines)];
+    end_result = readInputFile(sys.argv[1])
 
-print_token_by_line(tokens);
+    end_result.simulate()
 
-print("\n\n");
-index, end_result = process_tokens(tokens, None, 0)
-print("\n\n");
-end_result.print_colony_components()
-
-print("\n\n");
+    print("\n\n");
