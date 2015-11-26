@@ -106,9 +106,10 @@ class Pcolony:
         runnableAgents = [] # the list of agents that have an executable program
 
         for agent_name, agent in self.agents.items():
+            logging.debug("Checking agent %s" % agent_name)
             # if the agent choses 1 program to execute
             if (agent.choseProgram()):
-                logging.debug("Agent %s is runnable" % agent_name)
+                logging.info("Agent %s is runnable" % agent_name)
                 runnableAgents.append(agent_name)
         
         logging.info("%d runnable agents" % len(runnableAgents))
@@ -118,7 +119,7 @@ class Pcolony:
             return SimStepResult.no_more_executables # simulation cannot continue
 
         for agent_name in runnableAgents:
-            logging.debug("Running %s agent program nr %d" % (agent_name, self.agents[agent_name].chosenProgramNr))
+            logging.info("Running Agent %s  Program %d" % (agent_name, self.agents[agent_name].chosenProgramNr))
             # if there were errors encountered during program execution
             if (self.agents[agent_name].executeProgram() == False):
                 logging.error("Execution failed for agent %s, stopping simulation" % agent_name)
@@ -256,18 +257,18 @@ class Agent:
         # if there is only 1 executable program
         if (len(possiblePrograms) == 1):
             self.chosenProgramNr = possiblePrograms[0];
-            logging.info("chosen_program =  %d" % self.chosenProgramNr)
+            logging.debug("chosen_program =  %d" % self.chosenProgramNr)
             return True; # this agent has an executable program
         
         # there is more than 1 executable program
         elif (len(possiblePrograms) > 1):
             rand_value = random.randint(0, len(possiblePrograms) - 1) 
             self.chosenProgramNr = possiblePrograms[rand_value];
-            logging.info("stochastically_chosen_program =  %d" % self.chosenProgramNr)
+            logging.debug("stochastically_chosen_program =  %d" % self.chosenProgramNr)
             return True; # this agent has an executable program
 
         self.chosenProgramNr = -1 # no program can be executed
-        logging.info("no executable program")
+        logging.debug("no executable program")
         return False 
             
     #end choseProgram()
