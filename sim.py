@@ -58,7 +58,7 @@ class Pcolony:
         self.f = '' # final object
         self.n = 0   # capacity
         self.env = collections.Counter() # store objects found in the environement
-        self.B = []  # agents (list of Agent type objects)
+        self.B = []  # list of agent names
         self.agents = {} # agent dictionary (agent_name : Agent_object)
     #end __init__
 
@@ -512,7 +512,7 @@ def process_tokens(tokens, parent, index):
     
     """
     
-    logging.warning("process_tokens (parent_type = %s, index = %d)" % (type(parent), index))
+    logging.debug("process_tokens (parent_type = %s, index = %d)" % (type(parent), index))
     result = parent # construct the result of specified type
     prev_token = tokens[index]
     rule = Rule() # dirty workaround to parsing rules recursively
@@ -523,7 +523,7 @@ def process_tokens(tokens, parent, index):
         
         if (type(parent) == Pcolony):
             # process the following tokens as members of a Pcolony class
-            logging.warning("processing as Pcolony")
+            logging.debug("processing as Pcolony")
             if (token.type == 'ASSIGN'):
                 if (prev_token.value == 'A'):
                     logging.info("building list");
@@ -560,7 +560,7 @@ def process_tokens(tokens, parent, index):
                     result.agents[prev_token.value] = agent # store newly parsed agent indexed by name
 
         elif (type(parent) == Agent):
-            logging.warning("processing as Agent")
+            logging.debug("processing as Agent")
             # process the following tokens as members of an Agent class
             
             # agent object lists are separated with curly braces
@@ -576,7 +576,7 @@ def process_tokens(tokens, parent, index):
                 result.programs.append(program)
         
         elif (type(parent) == Program):
-            logging.warning("processing as Program")
+            logging.debug("processing as Program")
             # process the following tokens as members of an Program class 
             
             # if i reached the end of a rule definition
@@ -631,22 +631,22 @@ def process_tokens(tokens, parent, index):
                         rule.main_type = RuleType.conditional
         
         elif (type(parent) == list):
-            logging.warning("processing as List")
+            logging.debug("processing as List")
             if (token.type == 'ID'):
                 result.append(token.value);
 
         elif (type(parent) == str):
-            logging.warning("processing as Str")
+            logging.debug("processing as Str")
             if (token.type == 'ID'):
                 result = token.value;
 
         elif (type(parent) == int):
-            logging.warning("processing as Int")
+            logging.debug("processing as Int")
             if (token.type == 'NUMBER'):
                 result = int(token.value);
 
         else:
-            logging.warning("processing as GENERAL")
+            logging.debug("processing as GENERAL")
             # process the token generally
             if (token.type == 'ASSIGN' and prev_token.value == 'pi'): 
                 index, result = process_tokens(tokens, Pcolony(), index + 1);
@@ -710,11 +710,14 @@ if (__name__ == "__main__"):
             secondary_log_colors={},
             style='%'
     )
-    colorlog.basicConfig(level = logging.DEBUG)
+    if ('--debug' in sys.argv):
+        colorlog.basicConfig(level = logging.DEBUG)
+    else:
+        colorlog.basicConfig(level = logging.INFO) # default log level
     stream = colorlog.root.handlers[0]
     stream.setFormatter(formatter);
 
-    if (len(sys.argv) != 2):
+    if (len(sys.argv) < 2):
         logging.error("Expected input file path as parameter")
         exit(1)
 
