@@ -71,6 +71,79 @@ class Pswarm():
         self._print_contents()
         print("}")
     # end print_colonies()
+
+    def simulate(self, stepByStepConfirm = False, printEachColonyState = True, maxSteps = -1, maxTime = -1):
+        """Simulates the Pswarm until there are no more programs (in any of the Pcolonies) to execute or one of the imposed limits is reached
+        The function closely resembles the Pcolony.simulate() only that this function runs simulates all of the colonies synchronously.
+
+        :stepByStepConfirm: True / False - whether or not to wait for confirmation before starting the next simulation step
+        :maxSteps: The maximmum number of simulation steps to run
+        :maxTime: The maximum time span that the entire simulation can last
+        :returns: True / False depending on the succesfull finish of the simulation before reaching any of the limits"""
+
+        # store the simulation result for each colony in the swarm (initially -1)
+        simResult = {colony_name: -1 for colony_name in self.C}
+        currentStep = 0;
+        startTime = currentTime = time.time();
+         # time.time() == time in seconds since the Epoch
+        finalTime = currentTime + maxTime
+        # becomes true when all colonies return simStepResult.no_more_executables
+        finished = False
+
+        while (not finished):
+            logging.info("Starting simulation step %d", currentStep)
+            finished = True
+
+            for colony_name in self.C:
+                # if this colony has ran all it's simulation steps (no more executables)
+                if (simResult[colony_name] == SimStepResult.no_more_executables):
+                    # skip this colony
+                    continue
+
+                logging.info("Running simulation step from %s Pcolony" % colony_name)
+                simResult[colony_name] = self.colonies[colony_name].runSimulationStep()
+
+                if (printEachColonyState):
+                    self.colonies[colony_name].print_colony_components(name = colony_name)
+
+                # if the simulation stopped because there are no more executable programs
+                if (simResult[colony_name] == SimStepResult.no_more_executables):
+                    logging.warning("%s Pcolony finished" % colony_name)
+                    continue; # go to next colony
+
+                # if there was an error encountered during this simulation step
+                elif (simResult[colony_name] == SimStepResult.error):
+                    logging.error("Error encountered")
+                    return False # stop the simulation and mark it as failed
+
+                # simResult = SimStepResult.finished (this step, but not over yet)
+                else:
+                    finished = False
+            
+            # store current time at simulation step end
+            currentTime = time.time()
+            if (stepByStepConfirm):
+                input("Press ENTER to continue")
+            
+            # if there is a maximum time limit set and it was exceded
+            if ((currentTime >= finalTime) and (maxTime > 0)):
+                logging.warning("Maximum time limit exceeded; Simulation stopped")
+                return False # stop the simulation and mark it as failed
+            
+            # if there is a maximum step limit set and it was exceded
+            if ((currentStep >= maxSteps) and (maxSteps > 0)):
+                logging.warning("Maximum number of simulation steps exceeded; Simulation stopped")
+                return False # stop the simulation and mark it as failed
+
+            currentStep += 1
+        #end while loop
+
+        logging.info("Simulation finished succesfully after %d steps and %f seconds; End state below:" % (currentStep, currentTime - startTime))
+        self.print_colonies()
+        
+        # if the simulation reaches this step it means that the it finished succesfully
+        return True
+    # end simulate()
 # end class Pswarm
 
 class XPcolony(Pswarm):
@@ -141,7 +214,7 @@ class Pcolony:
             for i, program in enumerate(self.agents[ag_name].programs):
                 print(" " * (indentSpacesNr + 16) + "P%d = <" % i)
                 for rule in program:
-                    rule.print(indentSpaces = 21)
+                    rule.print(indentSpaces = 21 + indentSpacesNr)
                 print(" " * (indentSpacesNr + 16) + ">")
 
             print(" " * (indentSpacesNr + 12) + ")")
@@ -799,9 +872,9 @@ if (__name__ == "__main__"):
             style='%'
     )
     if ('--debug' in sys.argv):
-        colorlog.basicConfig(level = logging.DEBUG)
+        colorlog.basicConfig(stream = sys.stdout, level = logging.DEBUG)
     else:
-        colorlog.basicConfig(level = logging.INFO) # default log level
+        colorlog.basicConfig(stream = sys.stdout, level = logging.INFO) # default log level
     stream = colorlog.root.handlers[0]
     stream.setFormatter(formatter);
 
