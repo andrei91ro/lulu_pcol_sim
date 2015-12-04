@@ -7,6 +7,7 @@ import logging # for logging functions
 import colorlog # colors log output
 import random # for stochastic chosing of programs
 import time # for time.time()
+from copy import copy # for shallow copy (value not reference as = does for objects)
 ##########################################################################
 # type definitions
 
@@ -47,6 +48,58 @@ ruleNames = {
 # tuple used to describe parsed data
 Token = collections.namedtuple('Token', ['type', 'value', 'line', 'column'])
 
+class Pswarm():
+
+    """Pswarm class that holds all the components of an Pswarm (colony of colonies)"""
+
+    def __init__(self):
+       self.C = [] # list of colony names
+       self.colonies = {} # colony dictionary (colony_name : Pcolony_object)
+    # end __init__()
+
+    def _print_contents(self):
+        """prints the contents of this Pswarm (protected method)"""
+        print("    C = %s" % self.C)
+        for colony_name in self.C:
+            print() # add a line betwen colonies
+            self.colonies[colony_name].print_colony_components(colony_name, indentSpacesNr = 8)
+    # end __print_contents()
+    
+    def print_colonies(self):
+        """Print the contents of this Pswarm"""
+        print("Pswarm = {")
+        self._print_contents()
+        print("}")
+    # end print_colonies()
+# end class Pswarm
+
+class XPcolony(Pswarm):
+
+    """XPcolony class, built upon the Pswarm (colony of colonies)"""
+
+    def __init__(self, swarm = None):
+        Pswarm.__init__(self)
+        self.global_env = collections.Counter() # store objects found in the global environment
+        # if we inherit an existing Pswarm
+        if (swarm):
+            self.C = copy(swarm.C)
+            self.colonies = copy(swarm.colonies)
+    # end __init__()
+    
+    def _print_contents(self):
+        """Prints the contents of this XPcolony (protected method)"""
+        print("    global_env = %s" % self.global_env.most_common(None))
+        super()._print_contents()
+    # end __print_contents()
+    
+    def print_colonies(self):
+        """Print the contents of this XPcolony"""
+        print("XPcolony = {")
+        self._print_contents()
+        print("}")
+    # end print_colonies()
+# end class XPcolony
+
 class Pcolony:
 
     """Pcolony class that holds all the components of a P colony."""
@@ -65,36 +118,36 @@ class Pcolony:
     # TODO add specialized functions
     # TODO describe_colony
     
-    def print_colony_components(self):
+    def print_colony_components(self, name = "Pcolony", indentSpacesNr = 0):
         """Prints the given Pcolony as a tree, to aid in inspecting the internal structure of the parsed colony
 
         :colony: Pcolony type object used as input
 
         """
 
-        print("Pcolony = {")
-        print("    A = %s" % self.A)
-        print("    e = %s" % self.e)
-        print("    f = %s" % self.f)
-        print("    n = %s" % self.n)
+        print(" " * indentSpacesNr + "%s = {" % name)
+        print(" " * (indentSpacesNr + 4) + "A = %s" % self.A)
+        print(" " * (indentSpacesNr + 4) + "e = %s" % self.e)
+        print(" " * (indentSpacesNr + 4) + "f = %s" % self.f)
+        print(" " * (indentSpacesNr + 4) + "n = %s" % self.n)
         # print out only a:3 b:5 (None is used for printing all objects, not just the most common n)
-        print("    env = %s" % self.env.most_common(None))
-        print("    B = %s" % self.B)
+        print(" " * (indentSpacesNr + 4) + "env = %s" % self.env.most_common(None))
+        print(" " * (indentSpacesNr + 4) + "B = %s" % self.B)
         for ag_name in self.B:
-            print("        %s = (" % ag_name);
+            print(" " * (indentSpacesNr + 8) + "%s = (" % ag_name);
             # print out only a:3 b:5 (None is used for printing all objects, not just the most common n)
-            print("             obj = %s" % self.agents[ag_name].obj.most_common(None))
-            print("             programs = (")
+            print(" " * (indentSpacesNr + 12) + "obj = %s" % self.agents[ag_name].obj.most_common(None))
+            print(" " * (indentSpacesNr + 12) + "programs = (")
             for i, program in enumerate(self.agents[ag_name].programs):
-                print("                 P%d = <" % i)
+                print(" " * (indentSpacesNr + 16) + "P%d = <" % i)
                 for rule in program:
                     rule.print(indentSpaces = 21)
-                print("                 >")
+                print(" " * (indentSpacesNr + 16) + ">")
 
-            print("             )")
+            print(" " * (indentSpacesNr + 12) + ")")
 
-            print("        )")
-        print("}")
+            print(" " * (indentSpacesNr + 8) + ")")
+        print(" " * indentSpacesNr + "}")
 
     #end print_colony_components()
 
@@ -520,8 +573,35 @@ def process_tokens(tokens, parent, index):
     while (index < len(tokens)):
         token = tokens[index]
         logging.debug("token = '%s'" % token.value)
-        
-        if (type(parent) == Pcolony):
+
+        if (type(parent) == XPcolony):
+            if (token.type == 'ASSIGN'):
+                if (prev_token.value == 'global_env'):
+                    logging.info("building list");
+                    index, objects = process_tokens(tokens, list(), index + 1);
+                    # make sure that 1 simbolic e object is in env
+                    if ('e' not in objects):
+                        objects.append('e')
+                    result.global_env = collections.Counter(objects)
+
+        # XPcolony descends from Pswarm so it has all of Pswarms' member variables
+        if (type(parent) == Pswarm or type(parent) == XPcolony):
+            # process the following tokens as members of a Pcolony class
+            logging.debug("processing as Pswarm")
+            
+            if (token.type == 'ASSIGN'):
+                if (prev_token.value == 'C'):
+                    logging.info("building list");
+                    index, result.C = process_tokens(tokens, result.C, index + 1);
+
+                # if the previout token was an colony name found in C
+                elif (prev_token.value in result.C): 
+                    logging.debug("building colony")
+                    index, colony = process_tokens(tokens, Pcolony(), index + 1);
+                    result.colonies[prev_token.value] = colony # store newly parsed agent indexed by name
+                    logging.info("Constructed %s colony" % prev_token.value)
+
+        elif (type(parent) == Pcolony):
             # process the following tokens as members of a Pcolony class
             logging.debug("processing as Pcolony")
             if (token.type == 'ASSIGN'):
@@ -648,8 +728,16 @@ def process_tokens(tokens, parent, index):
         else:
             logging.debug("processing as GENERAL")
             # process the token generally
-            if (token.type == 'ASSIGN' and prev_token.value == 'pi'): 
-                index, result = process_tokens(tokens, Pcolony(), index + 1);
+            if (token.type == 'ASSIGN'):
+                if (prev_token.value == 'pswarm'): 
+                    logging.info("building Pswarm")
+                    index, result = process_tokens(tokens, Pswarm(), index + 1);
+                elif (prev_token.value == 'xp'): 
+                    logging.info("building XPcolony")
+                    index, result = process_tokens(tokens, XPcolony(), index + 1);
+                else: 
+                    logging.info("building Pcolony")
+                    index, result = process_tokens(tokens, Pcolony(), index + 1);
 
         if (token.type == 'END'):
             logging.info("finished this block with result = %s" % result)
@@ -685,7 +773,7 @@ def readInputFile(filename, printTokens=False):
     index, end_result = process_tokens(tokens, None, 0)
 
     print("\n\n");
-    end_result.print_colony_components()
+    end_result.print_colonies()
     print("\n\n");
 
     return end_result
