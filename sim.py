@@ -846,7 +846,10 @@ def readInputFile(filename, printTokens=False):
     index, end_result = process_tokens(tokens, None, 0)
 
     print("\n\n");
-    end_result.print_colonies()
+    if (type(end_result) == Pswarm or type(end_result) == XPcolony):
+        end_result.print_colonies()
+    elif (type(end_result == Pcolony)):
+        end_result.print_colony_components()
     print("\n\n");
 
     return end_result
