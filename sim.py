@@ -55,6 +55,7 @@ class Pswarm():
     def __init__(self):
        self.C = [] # list of colony names
        self.colonies = {} # colony dictionary (colony_name : Pcolony_object)
+       self.simResult = {} # simulation step result dictionary (colony_name : SimStepResult object)
     # end __init__()
 
     def _print_contents(self):
@@ -72,6 +73,47 @@ class Pswarm():
         print("}")
     # end print_colonies()
 
+    def runSimulationStep(self, printEachColonyState = False):
+        """Runs one simulation step for all colonies that form this Pswarm
+        :returns: SimStepResult values depending on the succes of the current run """
+
+        finished = True
+
+        for colony_name in self.C:
+            # if this colony has ran all it's simulation steps (no more executables)
+            if (self.simResult[colony_name] == SimStepResult.no_more_executables):
+                # skip this colony
+                continue
+
+            logging.info("Running simulation step from %s Pcolony" % colony_name)
+            self.simResult[colony_name] = self.colonies[colony_name].runSimulationStep()
+
+            if (printEachColonyState):
+                self.colonies[colony_name].print_colony_components(name = colony_name)
+
+            # if the simulation stopped because there are no more executable programs
+            if (self.simResult[colony_name] == SimStepResult.no_more_executables):
+                logging.warning("%s Pcolony finished" % colony_name)
+                continue; # go to next colony
+
+            # if there was an error encountered during this simulation step
+            elif (self.simResult[colony_name] == SimStepResult.error):
+                logging.error("Error encountered")
+                return SimStepResult.error # stop the simulation and mark it as failed
+
+            # simResult = SimStepResult.finished (this step, but not over yet)
+            else:
+                finished = False
+        #end for colony_name
+
+        if (finished):
+            return SimStepResult.no_more_executables
+
+        # if the function reaches this step then the simulation step finished succesfully
+        # but there still are colonies with executable programs
+        return SimStepResult.finished
+    # end runSimulationStep()
+
     def simulate(self, stepByStepConfirm = False, printEachColonyState = True, maxSteps = -1, maxTime = -1):
         """Simulates the Pswarm until there are no more programs (in any of the Pcolonies) to execute or one of the imposed limits is reached
         The function closely resembles the Pcolony.simulate() only that this function runs simulates all of the colonies synchronously.
@@ -82,7 +124,7 @@ class Pswarm():
         :returns: True / False depending on the succesfull finish of the simulation before reaching any of the limits"""
 
         # store the simulation result for each colony in the swarm (initially -1)
-        simResult = {colony_name: -1 for colony_name in self.C}
+        self.simResult = {colony_name: -1 for colony_name in self.C}
         currentStep = 0;
         startTime = currentTime = time.time();
          # time.time() == time in seconds since the Epoch
@@ -92,34 +134,16 @@ class Pswarm():
 
         while (not finished):
             logging.info("Starting simulation step %d", currentStep)
-            finished = True
 
-            for colony_name in self.C:
-                # if this colony has ran all it's simulation steps (no more executables)
-                if (simResult[colony_name] == SimStepResult.no_more_executables):
-                    # skip this colony
-                    continue
+            # run the simulation step
+            stepResult = self.runSimulationStep(printEachColonyState)
+            if (stepResult == SimStepResult.error):
+                return False # mark this simulation as failed because there was an error in this simulation step
+            elif (stepResult == SimStepResult.no_more_executables):
+                finished = True
+            else:
+                finished = False
 
-                logging.info("Running simulation step from %s Pcolony" % colony_name)
-                simResult[colony_name] = self.colonies[colony_name].runSimulationStep()
-
-                if (printEachColonyState):
-                    self.colonies[colony_name].print_colony_components(name = colony_name)
-
-                # if the simulation stopped because there are no more executable programs
-                if (simResult[colony_name] == SimStepResult.no_more_executables):
-                    logging.warning("%s Pcolony finished" % colony_name)
-                    continue; # go to next colony
-
-                # if there was an error encountered during this simulation step
-                elif (simResult[colony_name] == SimStepResult.error):
-                    logging.error("Error encountered")
-                    return False # stop the simulation and mark it as failed
-
-                # simResult = SimStepResult.finished (this step, but not over yet)
-                else:
-                    finished = False
-            
             # store current time at simulation step end
             currentTime = time.time()
             if (stepByStepConfirm):
@@ -884,9 +908,14 @@ if (__name__ == "__main__"):
     if (len(sys.argv) < 2):
         logging.error("Expected input file path as parameter")
         exit(1)
+    
+    # step by step simulation
+    step = False
+    if ('--step' in sys.argv):
+        step = True
 
     end_result = readInputFile(sys.argv[1])
 
-    end_result.simulate()
+    end_result.simulate(stepByStepConfirm = step)
 
     print("\n\n");
