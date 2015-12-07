@@ -7,7 +7,7 @@ import logging # for logging functions
 import colorlog # colors log output
 import random # for stochastic chosing of programs
 import time # for time.time()
-from copy import copy # for shallow copy (value not reference as = does for objects)
+from copy import deepcopy # for deepcopy (value not reference as = does for objects)
 ##########################################################################
 # type definitions
 
@@ -179,8 +179,8 @@ class XPcolony(Pswarm):
         self.global_env = collections.Counter() # store objects found in the global environment
         # if we inherit an existing Pswarm
         if (swarm):
-            self.C = copy(swarm.C)
-            self.colonies = copy(swarm.colonies)
+            self.C = deepcopy(swarm.C)
+            self.colonies = deepcopy(swarm.colonies)
     # end __init__()
     
     def _print_contents(self):
