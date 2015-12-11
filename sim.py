@@ -18,6 +18,7 @@ class RuleType(Enum):
     evolution = 1
     communication = 2
     conditional = 3
+    exteroceptive = 4
 
 #end class RuleType
 
@@ -43,6 +44,7 @@ ruleNames = {
         RuleType.evolution : '->',
         RuleType.communication : '<->',
         RuleType.conditional : '/',
+        RuleType.exteroceptive : '<=>',
 }
 
 # tuple used to describe parsed data
@@ -56,22 +58,19 @@ class Pswarm():
        self.C = [] # list of colony names
        self.colonies = {} # colony dictionary (colony_name : Pcolony_object)
        self.simResult = {} # simulation step result dictionary (colony_name : SimStepResult object)
+       self.global_env = collections.Counter() # store the objects from the global (swarm) environemnt
     # end __init__()
 
-    def _print_contents(self):
-        """prints the contents of this Pswarm (protected method)"""
+    def print_swarm_components(self):
+        """Print the contents of this Pswarm"""
+        print("Pswarm = {")
+        print("    global_env = %s" % self.global_env.most_common(None))
         print("    C = %s" % self.C)
         for colony_name in self.C:
             print() # add a line betwen colonies
             self.colonies[colony_name].print_colony_components(colony_name, indentSpacesNr = 8)
-    # end __print_contents()
-    
-    def print_colonies(self):
-        """Print the contents of this Pswarm"""
-        print("Pswarm = {")
-        self._print_contents()
         print("}")
-    # end print_colonies()
+    # end print_swarm_components()
 
     def runSimulationStep(self, printEachColonyState = False):
         """Runs one simulation step for all colonies that form this Pswarm
@@ -114,7 +113,7 @@ class Pswarm():
         return SimStepResult.finished
     # end runSimulationStep()
 
-    def simulate(self, stepByStepConfirm = False, printEachColonyState = True, maxSteps = -1, maxTime = -1):
+    def simulate(self, stepByStepConfirm = False, printEachSwarmState = True, maxSteps = -1, maxTime = -1):
         """Simulates the Pswarm until there are no more programs (in any of the Pcolonies) to execute or one of the imposed limits is reached
         The function closely resembles the Pcolony.simulate() only that this function runs simulates all of the colonies synchronously.
 
@@ -136,7 +135,7 @@ class Pswarm():
             logging.info("Starting simulation step %d", currentStep)
 
             # run the simulation step
-            stepResult = self.runSimulationStep(printEachColonyState)
+            stepResult = self.runSimulationStep()
             if (stepResult == SimStepResult.error):
                 return False # mark this simulation as failed because there was an error in this simulation step
             elif (stepResult == SimStepResult.no_more_executables):
@@ -146,6 +145,10 @@ class Pswarm():
 
             # store current time at simulation step end
             currentTime = time.time()
+
+            if (printEachSwarmState):
+                self.print_swarm_components()
+
             if (stepByStepConfirm):
                 input("Press ENTER to continue")
             
@@ -163,7 +166,7 @@ class Pswarm():
         #end while loop
 
         logging.info("Simulation finished succesfully after %d steps and %f seconds; End state below:" % (currentStep, currentTime - startTime))
-        self.print_colonies()
+        self.print_swarm_components()
         
         # if the simulation reaches this step it means that the it finished succesfully
         return True
@@ -183,6 +186,7 @@ class Pcolony:
         self.env = collections.Counter() # store objects found in the environement
         self.B = []  # list of agent names
         self.agents = {} # agent dictionary (agent_name : Agent_object)
+        self.parentSwarm = None
     #end __init__
 
     # TODO add specialized functions
@@ -344,6 +348,11 @@ class Agent:
                         executable = False;
                         break;
 
+                    # exteroceptive rules require the right hand side obj to be available in the global Pswarm environment
+                    if (rule.main_type == RuleType.exteroceptive and rule.rhs not in self.colony.parentSwarm.global_env):
+                        executable = False;
+                        break;
+
                     rule.exec_rule_nr = RuleExecOption.first # the only option available
                 
                 # if this is a conditional rule
@@ -354,11 +363,17 @@ class Agent:
                         executable = False;
                         break; # stop checking
                     #if the first rule is of communication type and the right hand side object is not in the environement
-                    if (rule.type == RuleType.communication and rule.rhs not in self.colony.env):
+                    #   or the first rule is of exteroceptive type and the right hand side object is not in the environement
+                    if ( (rule.type == RuleType.communication and rule.rhs not in self.colony.env) or (rule.type == RuleType.exteroceptive and rule.rhs not in self.colony.parentSwarm.global_env) ):
                         # the first rule cannot be executed so we check the second rule
 
                         # if the second rule is of communication type then the right hand side object has to be in the environement
                         if (rule.alt_type == RuleType.communication and rule.alt_rhs not in self.colony.env):
+                            executable = False;
+                            break;
+
+                        # if the second rule is of exteroceptive type then the right hand side object has to be in the global Pswarm environement
+                        if (rule.alt_type == RuleType.exteroceptive and rule.alt_rhs not in self.colony.parentSwarm.global_env):
                             executable = False;
                             break;
 
@@ -409,7 +424,7 @@ class Agent:
             if (rule.exec_rule_nr == RuleExecOption.first):
                 
                 # remove one instance of rule.lhs from obj
-                # both evolution and communication need this part
+                # evolution and communication and exteroceptive need this part
                 self.obj[rule.lhs] -= 1;
                 # 0 counts are allowed so if this is the case
                 if (self.obj[rule.lhs] == 0):
@@ -420,8 +435,7 @@ class Agent:
                     # add the rule.rhs object to obj
                     self.obj[rule.rhs] += 1
                 
-                # if this is a communication rule
-                else:
+                elif (rule.type == RuleType.communication):
                     # if the rule.rhs object is not in the environement any more
                     if (self.colony.env[rule.rhs] <= 0):
                         # this is an error, some other agent modified the environement
@@ -439,19 +453,45 @@ class Agent:
                             # remove the entry from the env counter
                             del self.colony.env[rule.rhs]
 
-                    # transfer object from environment to agent.obj
-                    self.obj[rule.rhs] += 1
-                   
                     # only modify the environment if the lhs object is not e
                     if (rule.lhs != self.colony.e): 
                         # transfer object from agent.obj to environment
                         self.colony.env[rule.lhs] += 1
             
+                    # transfer object from environment to agent.obj
+                    self.obj[rule.rhs] += 1
+
+                elif (rule.type == RuleType.exteroceptive):
+                        # if the rule.rhs object is not in the global swarm environement any more
+                    if (self.colony.parentSwarm.global_env[rule.rhs] <= 0):
+                        # this is an error, some other agent modified the environement
+                        logging.error("Object %s was required in the global swarm environement by rule %s but was not found" % (rule.rhs, rule.print(toString = True)))
+                        logging.error("Please check your rules and try again")
+                        return False
+
+                    # remove one instance of rule.rhs from global swarm env only if it not 'e'
+                    # 'e' object should remain constant in the environment
+                    if (rule.rhs != self.colony.e):
+                        # remove one instance of rule.rhs from global swarm env
+                        self.colony.parentSwarm.global_env[rule.rhs] -= 1;
+                        # 0 counts are allowed so if this is the case
+                        if (self.colony.parentSwarm.global_env[rule.rhs] == 0):
+                            # remove the entry from the env counter
+                            del self.colony.parentSwarm.global_env[rule.rhs]
+
+                    # only modify the global swarm environment if the lhs object is not e
+                    if (rule.lhs != self.colony.e): 
+                        # transfer object from agent.obj to global swarm environment
+                        self.colony.parentSwarm.global_env[rule.lhs] += 1
+ 
+                    # transfer object from environment to agent.obj
+                    self.obj[rule.rhs] += 1
+
             # if this is a conditional rule and the second rule was chosen for execution
             elif (rule.exec_rule_nr == RuleExecOption.second):
 
                 # remove one instance of rule.alt_lhs from obj
-                # both evolution and communication need this part
+                # evolution and communication and exteroceptive need this part
                 self.obj[rule.alt_lhs] -= 1;
                 # 0 counts are allowed so if this is the case
                 if (self.obj[rule.alt_lhs] == 0):
@@ -462,8 +502,7 @@ class Agent:
                     # add the rule.alt_rhs object to obj
                     self.obj[rule.alt_rhs] += 1
                 
-                # if this is a communication rule
-                else:
+                elif (rule.alt_type == RuleType.communication):
                     # if the rule.alt_rhs object is not in the environement any more
                     if (self.colony.env[rule.alt_rhs] <= 0):
                         # this is an error, some other agent modified the environement
@@ -488,6 +527,32 @@ class Agent:
                     if (rule.alt_lhs != self.colony.e): 
                         # transfer object from agent.obj to environment
                         self.colony.env[rule.alt_lhs] += 1
+
+                elif (rule.alt_type == RuleType.exteroceptive):
+                    # if the rule.alt_rhs object is not in the global swarm environement any more
+                    if (self.colony.parentSwarm.global_env[rule.alt_rhs] <= 0):
+                        # this is an error, some other agent modified the environement
+                        logging.error("Object %s was required in the global swarm environement by rule %s but was not found" % (rule.alt_rhs, rule.print(toString = True)))
+                        logging.error("Please check your rules and try again")
+                        return False
+                    
+                    # remove one instance of rule.alt_rhs from global swarm env only if it not 'e'
+                    # 'e' object should remain constant in the environment
+                    if (rule.alt_rhs != self.colony.e):
+                        # remove one instance of rule.alt_rhs from global swarm env
+                        self.colony.parentSwarm.global_env[rule.alt_rhs] -= 1;
+                        # 0 counts are allowed so if this is the case
+                        if (self.colony.parentSwarm.global_env[rule.alt_rhs] == 0):
+                            # remove the entry from the env counter
+                            del self.colony.parentSwarm.global_env[rule.alt_rhs]
+
+                    # transfer object from environment to agent.obj
+                    self.obj[rule.alt_rhs] += 1
+                    
+                    # only modify the global swarm environment if the alt_lhs object is not e
+                    if (rule.alt_lhs != self.colony.e): 
+                        # transfer object from agent.obj to environment
+                        self.colony.parentSwarm.global_env[rule.alt_lhs] += 1
             # end elif exec_rule_nr == second
         
         # rule execution finished succesfully
@@ -526,7 +591,9 @@ class Rule():
         """Print a rule with a given indentation level
 
         :indentSpaces: number of spaces used for indentation
-        :onlyExecutable: print the rule only if it is marked as executable"""
+        :onlyExecutable: print the rule only if it is marked as executable
+        :toString: write to a string instead of stdout
+        :returns: string print of the rule if toString = True otherwise returns "" """
         
         result = ""
 
@@ -583,6 +650,7 @@ def tokenize(code):
 
         #order counts here (the more complex rules go first)
         ('COMMUNICATION', r'<->'),         # Communication rule sign '<->'
+        ('EXTEROCEPTIVE', r'<=>'),         # Exteroceptive rule sign '<=>'
         ('EVOLUTION',     r'->'),          # Evolution rule sign '->'
         ('SMALLER',       r'<'),           # Smaller sign '<'
         ('LARGER',        r'>'),           # Larger sign '>'
@@ -665,6 +733,7 @@ def process_tokens(tokens, parent, index):
                 elif (prev_token.value in result.C): 
                     logging.debug("building colony")
                     index, colony = process_tokens(tokens, Pcolony(), index + 1);
+                    colony.parentSwarm = result # store a reference to the parent swarm
                     result.colonies[prev_token.value] = colony # store newly parsed agent indexed by name
                     logging.info("Constructed %s colony" % prev_token.value)
 
@@ -759,6 +828,8 @@ def process_tokens(tokens, parent, index):
                         rule.type = RuleType.evolution
                     elif (token.type == 'COMMUNICATION'):
                         rule.type = RuleType.communication
+                    elif (token.type == 'EXTEROCEPTIVE'):
+                        rule.type = RuleType.exteroceptive
                     elif (token.type == 'CHECK_SIGN'):
                         rule.main_type = RuleType.conditional
                 
@@ -774,6 +845,8 @@ def process_tokens(tokens, parent, index):
                         rule.alt_type = RuleType.evolution
                     elif (token.type == 'COMMUNICATION'):
                         rule.alt_type = RuleType.communication
+                    elif (token.type == 'EXTEROCEPTIVE'):
+                        rule.alt_type = RuleType.exteroceptive
                     elif (token.type == 'CHECK_SIGN'):
                         rule.main_type = RuleType.conditional
         
@@ -838,7 +911,7 @@ def readInputFile(filename, printTokens=False):
 
     print("\n\n");
     if (type(end_result) == Pswarm):
-        end_result.print_colonies()
+        end_result.print_swarm_components()
     elif (type(end_result == Pcolony)):
         end_result.print_colony_components()
     print("\n\n");
