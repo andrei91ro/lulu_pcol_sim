@@ -7,7 +7,7 @@ import logging # for logging functions
 import colorlog # colors log output
 import random # for stochastic chosing of programs
 import time # for time.time()
-from copy import deepcopy # for deepcopy (value not reference as = does for objects)
+#from copy import deepcopy # for deepcopy (value not reference as = does for objects)
 ##########################################################################
 # type definitions
 
@@ -169,33 +169,6 @@ class Pswarm():
         return True
     # end simulate()
 # end class Pswarm
-
-class XPcolony(Pswarm):
-
-    """XPcolony class, built upon the Pswarm (colony of colonies)"""
-
-    def __init__(self, swarm = None):
-        Pswarm.__init__(self)
-        self.global_env = collections.Counter() # store objects found in the global environment
-        # if we inherit an existing Pswarm
-        if (swarm):
-            self.C = deepcopy(swarm.C)
-            self.colonies = deepcopy(swarm.colonies)
-    # end __init__()
-    
-    def _print_contents(self):
-        """Prints the contents of this XPcolony (protected method)"""
-        print("    global_env = %s" % self.global_env.most_common(None))
-        super()._print_contents()
-    # end __print_contents()
-    
-    def print_colonies(self):
-        """Print the contents of this XPcolony"""
-        print("XPcolony = {")
-        self._print_contents()
-        print("}")
-    # end print_colonies()
-# end class XPcolony
 
 class Pcolony:
 
@@ -671,7 +644,10 @@ def process_tokens(tokens, parent, index):
         token = tokens[index]
         logging.debug("token = '%s'" % token.value)
 
-        if (type(parent) == XPcolony):
+        if (type(parent) == Pswarm):
+            # process the following tokens as members of a Pcolony class
+            logging.debug("processing as Pswarm")
+
             if (token.type == 'ASSIGN'):
                 if (prev_token.value == 'global_env'):
                     logging.info("building list");
@@ -681,12 +657,6 @@ def process_tokens(tokens, parent, index):
                         objects.append('e')
                     result.global_env = collections.Counter(objects)
 
-        # XPcolony descends from Pswarm so it has all of Pswarms' member variables
-        if (type(parent) == Pswarm or type(parent) == XPcolony):
-            # process the following tokens as members of a Pcolony class
-            logging.debug("processing as Pswarm")
-            
-            if (token.type == 'ASSIGN'):
                 if (prev_token.value == 'C'):
                     logging.info("building list");
                     index, result.C = process_tokens(tokens, result.C, index + 1);
@@ -829,9 +799,6 @@ def process_tokens(tokens, parent, index):
                 if (prev_token.value == 'pswarm'): 
                     logging.info("building Pswarm")
                     index, result = process_tokens(tokens, Pswarm(), index + 1);
-                elif (prev_token.value == 'xp'): 
-                    logging.info("building XPcolony")
-                    index, result = process_tokens(tokens, XPcolony(), index + 1);
                 else: 
                     logging.info("building Pcolony")
                     index, result = process_tokens(tokens, Pcolony(), index + 1);
@@ -870,7 +837,7 @@ def readInputFile(filename, printTokens=False):
     index, end_result = process_tokens(tokens, None, 0)
 
     print("\n\n");
-    if (type(end_result) == Pswarm or type(end_result) == XPcolony):
+    if (type(end_result) == Pswarm):
         end_result.print_colonies()
     elif (type(end_result == Pcolony)):
         end_result.print_colony_components()
