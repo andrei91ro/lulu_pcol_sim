@@ -1,9 +1,9 @@
 pi = {
-	A = {l_p};
-	e = e;
-	f = f;
-	n = 2;
-	env = {f, f, f, l_p};
-	B = {AG_1};
-		AG_1 = ({e, e}; < e->f, e<->l_p >, < l_p->e, f<->e >);
+    A = {l_p};
+    e = e;
+    f = f;
+    n = 2;
+    env = {f, f, f, l_p};
+    B = {AG_1};
+        AG_1 = ({e, e}; < e->f, e<->l_p >, < l_p->e, f<->e >);
 }

@@ -1,10 +1,10 @@
 pi = {
-	A = {a, b, c};
-	e = e;
-	f = f;
-	n = 2;
-	env = {f, f, f};
-	B = {AG_1, AG_2};
-		AG_1 = ({e, e}; < e->f, e<->e >, < f->e, e->f/a->b >);
-		AG_2 = ({a, b}; < a->b, b<->e >, < c->f, a->b/b->c >);
+    A = {a, b, c};
+    e = e;
+    f = f;
+    n = 2;
+    env = {f, f, f};
+    B = {AG_1, AG_2};
+        AG_1 = ({e, e}; < e->f, e<->e >, < f->e, e->f/a->b >);
+        AG_2 = ({a, b}; < a->b, b<->e >, < c->f, a->b/b->c >);
 }

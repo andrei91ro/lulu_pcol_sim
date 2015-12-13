@@ -1,14 +1,14 @@
 pi = {
-	A = {l_m, l_p, l_z};
-	e = e;
-	f = f;
-	n = 2;
-	env = {f, f, f, l_m};
-	B = {AG_1};
-		AG_1 = ({e, e}; 
-				< e->e, e<->l_m >,
-				< l_m->l_p, e<->f/e<->e >,
-				< f->e, l_p<->e >,
-				< l_p->l_z, e<->e >,
-				< e->e, l_z<->e > );
+    A = {l_m, l_p, l_z};
+    e = e;
+    f = f;
+    n = 2;
+    env = {f, f, f, l_m};
+    B = {AG_1};
+        AG_1 = ({e, e}; 
+                < e->e, e<->l_m >,
+                < l_m->l_p, e<->f/e<->e >,
+                < f->e, l_p<->e >,
+                < l_p->l_z, e<->e >,
+                < e->e, l_z<->e > );
 }

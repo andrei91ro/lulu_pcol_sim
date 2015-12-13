@@ -1,0 +1,55 @@
+pswarm = {
+    global_env = {};
+    C = {xp_minus_straight, xp_minus_left};
+
+        xp_minus_straight = {
+            A = {l_m, m_0, m_S, m_L, m_R, c_R, c_G, c_B, s_L};
+            e = e;
+            f = f;
+            n = 2;
+            env = {f, f, f, f, f, f, f, f, f, f, f, f, f, f, f, l_m};
+            B = {command, motion};
+                command = ({e, e};
+                        < e->e, e<->l_m >,
+                        < l_m->m_S, e<->f/e<->e >,
+                        < f->e, m_S<->e >,
+                        < m_S->m_0, e->s_L >,
+                        < s_L<=>e, m_0<->e > );
+                    
+                motion = ({e, e};
+                        < e->l_m, e<->m_S >,
+                        < m_S->e, l_m<->e/e->e >
+                        < e->e, e<->m_0 >,
+                        < m_0->e, e<->m_0/e->e >);
+        };
+
+        xp_minus_left = {
+            A = {l_m, m_0, m_S, m_L, m_R, c_R, c_G, c_B, s_L, W};
+            e = e;
+            f = f;
+            n = 2;
+            env = {f, f, f, f, f, f, f, f, f, f, f, f, f, f, f, W};
+            B = {command, motion, heartbeat};
+                command = ({e, e};
+                        < e->e, e<=>s_L >,
+                        < s_L<->e, e->l_m >,
+                        
+                        < e->e, e<->l_m >,
+                        < l_m->m_L, e<->f/e<->e >,
+                        < f->e, m_L<->e >,
+                        < m_L->m_0, e<->e >,
+                        < e->e, m_0<->e > );
+                    
+                motion = ({e, e};
+                        < e->l_m, e<->m_L >,
+                        < m_L->e, l_m<->e/e->e >
+                        < e->e, e<->m_0 >,
+                        < m_0->e, e<->m_0/e->e >);
+
+                heartbeat = ({e, e};
+                        < e->e, e<->s_L / e<->W >,
+                        < s_L->e,  W->e >,
+                        < W<->e, e->e >);
+        };
+
+}

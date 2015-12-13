@@ -1,5 +1,6 @@
 pswarm = {
-    C = {pi_plus, pi_minus};
+    global_env = {f, l_p};
+    C = {pi_plus, xp_plus, pi_minus};
         pi_plus = {
             A = {l_p};
             e = e;
@@ -12,6 +13,18 @@ pswarm = {
                         < l_p->e, f<->e >);
         };
 
+        xp_plus = {
+            A = {l_p};
+            e = e;
+            f = f;
+            n = 2;
+            env = {f, f, f, l_p};
+            B = {AG_1};
+                AG_1 = ({e, e};
+                        < e->f, e<=>l_p >,
+                        < l_p->e, f<=>e >);
+        };
+
         pi_minus = {
             A = {l_m, l_p, l_z};
             e = e;
@@ -19,7 +32,7 @@ pswarm = {
             n = 2;
             env = {f, f, f, l_m};
             B = {AG_1};
-                AG_1 = ({e, e}; 
+                AG_1 = ({e, e};
                         < e->e, e<->l_m >,
                         < l_m->l_p, e<->f/e<->e >,
                         < f->e, l_p<->e >,
