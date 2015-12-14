@@ -327,11 +327,17 @@ class Agent:
         """Chose an executable program (or chose stochastically from a list of executable programs)
         : env - the objects from the environement
         : returns True / False depending on the availability of an executable program"""
+
        
         possiblePrograms = [] # used to store executable programs
         for nr, program in enumerate(self.programs):
            
             logging.debug("checking program %d of %d" % (nr, len(self.programs)))
+
+            required_obj = collections.Counter()
+            required_env = collections.Counter()
+            required_global_env = collections.Counter()
+
             executable = True
             for rule in program:
                 
@@ -354,6 +360,15 @@ class Agent:
                         break;
 
                     rule.exec_rule_nr = RuleExecOption.first # the only option available
+
+                    # if we reach this step, then the rule is executable
+                    required_obj[rule.lhs] += 1 # all rules need the lhs to be in obj
+
+                    if (rule.main_type == RuleType.communication):
+                        required_env[rule.rhs] += 1 # rhs part of the rule has to be in the Pcolony environment
+
+                    if (rule.main_type == RuleType.exteroceptive):
+                        required_global_env[rule.rhs] += 1 # rhs part of the rule has to be in the Pswarm global environment
                 
                 # if this is a conditional rule
                 else:
@@ -379,15 +394,54 @@ class Agent:
 
                        # the second rule can be executed (and the first cannot)
                         else:
-                           rule.exec_rule_nr = RuleExecOption.second # mark the second rule as executable
+                            rule.exec_rule_nr = RuleExecOption.second # mark the second rule as executable
+
+                            # if we reach this step, then the rule is executable
+                            required_obj[rule.alt_lhs] += 1 # all rules need the alt_lhs to be in obj
+
+                            if (rule.alt_type == RuleType.communication):
+                                required_env[rule.alt_rhs] += 1 # alt_rhs part of the rule has to be in the Pcolony environment
+
+                            if (rule.alt_type == RuleType.exteroceptive):
+                                required_global_env[rule.alt_rhs] += 1 # alt_rhs part of the rule has to be in the Pswarm global environment
                              
                     # the first rule can be executed
                     else:
                         rule.exec_rule_nr = RuleExecOption.first # mark the first rule as executable
+
+                        # if we reach this step, then the rule is executable
+                        required_obj[rule.alt_lhs] += 1 # all rules need the alt_lhs to be in obj
+
+                        if (rule.alt_type == RuleType.communication):
+                            required_env[rule.alt_rhs] += 1 # alt_rhs part of the rule has to be in the Pcolony environment
+
+                        if (rule.alt_type == RuleType.exteroceptive):
+                            required_global_env[rule.alt_rhs] += 1 # alt_rhs part of the rule has to be in the Pswarm global environment
                 
             #end for rule
 
+            # if all previous rule tests confirm that this program is executable
             if (executable):
+                # check that the Agent obj requirements of the program are met
+                for k, v in required_obj.items():
+                    if (self.obj[k] < v):
+                        logging.debug("required_obj check failed")
+                        executable = False # this program is not executable, check another program
+
+                # check that the Pcolony env requirements of the program are met
+                for k, v in required_env.items():
+                    if (self.colony.env[k] < v):
+                        logging.debug("required_env check failed")
+                        executable = False # this program is not executable, check another program
+
+                # check that the Pswarm global_env requirements of the program are met
+                for k, v in required_global_env.items():
+                    if (self.colony.parentSwarm.global_env[k] < v):
+                        logging.debug("required_global_env check failed")
+                        executable = False # this program is not executable, check another program
+
+            if (executable):
+                # if we reach this step then this program is executable
                 possiblePrograms.append(nr)
         #end for program
         
@@ -423,6 +477,13 @@ class Agent:
             # if this is a non-conditional or the first rule of a conditional rule was chosen
             if (rule.exec_rule_nr == RuleExecOption.first):
                 
+                # if the rule.lhs object is not in obj any more
+                if (self.obj[rule.lhs] <= 0):
+                    # this is an error, there was a bug in choseProgram() that shouldn't have chosen this program
+                    logging.error("Object %s was required in the agent by rule %s but was not found" % (rule.lhs, rule.print(toString = True)))
+                    logging.error("Please file a bug report regarding Pcolony.choseProgram()")
+                    return False
+
                 # remove one instance of rule.lhs from obj
                 # evolution and communication and exteroceptive need this part
                 self.obj[rule.lhs] -= 1;
@@ -489,6 +550,13 @@ class Agent:
 
             # if this is a conditional rule and the second rule was chosen for execution
             elif (rule.exec_rule_nr == RuleExecOption.second):
+
+                # if the rule.alt_lhs object is not in obj any more
+                if (self.obj[rule.alt_lhs] <= 0):
+                    # this is an error, there was a bug in choseProgram() that shouldn't have chosen this program
+                    logging.error("Object %s was required in the agent by rule %s but was not found" % (rule.alt_lhs, rule.print(toString = True)))
+                    logging.error("Please file a bug report regarding Pcolony.choseProgram()")
+                    return False
 
                 # remove one instance of rule.alt_lhs from obj
                 # evolution and communication and exteroceptive need this part
