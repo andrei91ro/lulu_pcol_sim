@@ -410,13 +410,13 @@ class Agent:
                         rule.exec_rule_nr = RuleExecOption.first # mark the first rule as executable
 
                         # if we reach this step, then the rule is executable
-                        required_obj[rule.alt_lhs] += 1 # all rules need the alt_lhs to be in obj
+                        required_obj[rule.lhs] += 1 # all rules need the lhs to be in obj
 
-                        if (rule.alt_type == RuleType.communication):
-                            required_env[rule.alt_rhs] += 1 # alt_rhs part of the rule has to be in the Pcolony environment
+                        if (rule.type == RuleType.communication):
+                            required_env[rule.rhs] += 1 # rhs part of the rule has to be in the Pcolony environment
 
-                        if (rule.alt_type == RuleType.exteroceptive):
-                            required_global_env[rule.alt_rhs] += 1 # alt_rhs part of the rule has to be in the Pswarm global environment
+                        if (rule.type == RuleType.exteroceptive):
+                            required_global_env[rule.rhs] += 1 # rhs part of the rule has to be in the Pswarm global environment
                 
             #end for rule
 
