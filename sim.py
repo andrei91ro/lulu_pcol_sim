@@ -428,12 +428,20 @@ class Agent:
                         logging.debug("required_obj check failed")
                         executable = False # this program is not executable, check another program
 
+                # if e object is among the required objects in the Pcolony environment
+                if ('e' in required_env):
+                    # ignore this requirement because in theory, there are always enough e objects in the environment
+                    del required_env['e']
                 # check that the Pcolony env requirements of the program are met
                 for k, v in required_env.items():
                     if (self.colony.env[k] < v):
                         logging.debug("required_env check failed")
                         executable = False # this program is not executable, check another program
 
+                # if e object is among the required objects in the Pswarm global_environment
+                if ('e' in required_global_env):
+                    # ignore this requirement because in theory, there are always enough e objects in the global_environment
+                    del required_global_env['e']
                 # check that the Pswarm global_env requirements of the program are met
                 for k, v in required_global_env.items():
                     if (self.colony.parentSwarm.global_env[k] < v):
