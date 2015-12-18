@@ -733,26 +733,34 @@ def tokenize(code):
 
         ('CHECK_SIGN',    r'/'),           # Checking rule separator '/'
         ('NEWLINE',       r'\n'),          # Line endings
+        ('COMMENT',       r'#'),           # Comment (anything after #, up to the end of the line is discarded)
         ('SKIP',          r'[ \t]+'),      # Skip over spaces and tabs
         ('MISMATCH',      r'.'),           # Any other character
     ]
-        # join all groups into one regex expr; ex:?P<NUMBER>\d+(\.\d*)?) | ...
+    # join all groups into one regex expr; ex:?P<NUMBER>\d+(\.\d*)?) | ...
     tok_regex = '|'.join('(?P<%s>%s)' % pair for pair in token_specification)
     line_num = 1
     line_start = 0
-        # iteratively search and return each match (for any of the groups)
+    in_comment = False
+    # iteratively search and return each match (for any of the groups)
     for mo in re.finditer(tok_regex, code):
         kind = mo.lastgroup # last group name matched
         value = mo.group(kind) # the last matched string (for group kind)
         #print("kind = %s, value = %s" % (kind, value))
-        if kind == 'NEWLINE':
+        if kind == 'COMMENT':
+            in_comment = True
+        elif kind == 'NEWLINE':
             line_start = mo.end()
             line_num += 1
+            in_comment = False # reset in_comment state
         elif kind == 'SKIP':
             pass
-        elif kind == 'MISMATCH':
+        elif (kind == 'MISMATCH') and (not in_comment):
             raise RuntimeError('%r unexpected on line %d' % (value, line_num))
         else:
+            # skip normal tokens if in comment (cleared at the end of the line)
+            if in_comment:
+                continue
             column = mo.start() - line_start
             yield Token(kind, value, line_num, column)
 #end tokenize

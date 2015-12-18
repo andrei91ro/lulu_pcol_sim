@@ -1,0 +1,16 @@
+pswarm = {
+    global_env = {f, f, l_p};
+    # C = {pi_minus} faskf;askflkas #$%$#^$&$&$#^$&$%&%^%^*^%*%^<><>}{
+    C = {pi_plus};
+        pi_plus = {
+            A = {l_p};
+            e = e;
+            f = f;
+            n = 2;
+            env = {f, f, f, l_p};
+            B = {AG_1};
+                AG_1 = ({e, e};
+                    < e->f, e<->l_p >, # check for addition request
+                    < l_p->e, f<->e >); # add one f in the environment
+        };
+}
