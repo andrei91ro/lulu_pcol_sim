@@ -320,8 +320,8 @@ class Agent:
         self.obj = collections.Counter() # objects stored by the agent (stored as a multiset thanks to Counter) 
         self.programs = [] # programs (list of programs (each program is a list of n  Rule objects))
         self.chosenProgramNr = -1 # the program that was chosen for execution
-    #end __init__()
         self.colony = parent_colony # reference to my parent colony (for acces to env, e, ...)
+    #end __init__()
 
     def choseProgram(self):
         """Chose an executable program (or chose stochastically from a list of executable programs)
@@ -642,6 +642,18 @@ class Program(list):
     def __init__(self):
         """Initialize the underling list used to store rules"""
         list.__init__(self)
+
+    def hasWildcards(self):
+        """Returns true or false depending on whether this program contains rules that use wildcards (such as *) or not
+        :returns: True / False """
+
+        for rule in self:
+            if (rule.hasWildcards()):
+                return True
+
+        # no rule was found to contain wildcards
+        return False
+    # end hasWildcards()
 #end class Program
 
 class Rule():
@@ -706,9 +718,70 @@ class Rule():
         
         return result
     # end print()
+
+    def hasWildcards(self):
+        """Returns true or false depending on whether this rule contains wildcards (such as *) or not
+        :returns: True / False """
+
+        if (('*' in self.lhs) or ('*' in self.rhs)):
+            return True
+
+        # check the alternative fields if this rule is conditional
+        if (self.main_type == RuleType.conditional):
+            if (('*' in self.alt_lhs) or ('*' in self.alt_rhs)):
+                return True
+
+        # no wildcard has been found
+        return False
+    # end hasWildcards()
 #end class Rule
 
 ##########################################################################
+
+def processObjectListWildcards(objectList, suffixList):
+    """Replaces all * wildcards with n copies that each have appended one element from the provided suffixList
+    ex: objectList = [a, b, c_3, d_*, e], suffixList=['0', '1', '2'] => objectList = [a, b, c_3, e, d_0, d_1, d_2]
+
+    :objectList: list of objects
+    :suffixList: list of strings that are going to be appended to each object that has the * wildcard
+    :returns: the new list"""
+
+    # we iterate over a copy of the object list (in order to modify it)
+    for item in objectList[:]:
+        if ('*' in item):
+            # append the new items
+            for suffix in suffixList:
+                objectList.append(item.replace("*", suffix))
+
+            # delete the item that contains the wildcards
+            objectList.remove(item)
+
+    return objectList
+# end processObjectListWildcard()
+
+def processObjectCounterWildcards(objectCounter, suffixList):
+    """Replaces all * wildcards with n copies that each have appended one element from the provided suffixList
+    ex: objectCounter = [a, b, c_3, d_*, e], suffixList=['0', '1', '2'] => objectCounter = [a, b, c_3, e, d_0, d_1, d_2]
+
+    :objectCounter: collections.Counter of objects
+    :suffixList: list of strings that are going to be appended to each object that has the * wildcard
+    :returns: the new counter"""
+
+    newCounter = collections.Counter()
+    # we iterate over the original counter
+    # and create a secondary counter with the new data
+    # because we are not alowed to modify a dictionary during a loop
+    for item in objectCounter:
+        if ('*' in item):
+            # add the new items to newCounter
+            for suffix in suffixList:
+                newCounter[item.replace("*", suffix)] = objectCounter[item]
+        else:
+            # store the original (non wildcarded) item in the newCounter
+            newCounter[item] = objectCounter[item]
+
+    return newCounter
+# end processObjectCounterWildcard()
 
 def tokenize(code):
     """ generate a token list of input text
@@ -717,7 +790,7 @@ def tokenize(code):
         ('NUMBER',        r'\d+'),         # Integer number
         ('ASSIGN',        r'='),           # Assignment operator '='
         ('END',           r';'),           # Statement terminator ';'
-        ('ID',            r'\w+'),         # Identifiers
+        ('ID',            r'[\w\*]+'),     # Identifiers
         ('L_BRACE',       r'\('),          # Left brace '('
         ('R_BRACE',       r'\)'),          # Right brace ')'
         ('L_CURLY_BRACE', r'{'),           # Left curly brace '{'
