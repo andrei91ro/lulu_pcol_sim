@@ -7,7 +7,7 @@ import logging # for logging functions
 import colorlog # colors log output
 import random # for stochastic chosing of programs
 import time # for time.time()
-#from copy import deepcopy # for deepcopy (value not reference as = does for objects)
+from copy import deepcopy # for deepcopy (value not reference as = does for objects)
 ##########################################################################
 # type definitions
 
@@ -189,9 +189,18 @@ class Pcolony:
         self.parentSwarm = None
     #end __init__
 
-    # TODO add specialized functions
-    # TODO describe_colony
-    
+    def processWildcards(self, suffixList):
+        """Recursively replaces wildcards with the appropriate replacements (from suffixList) in the
+        alphabet A, environment and each agent
+        :suffixList: list of strings that will replace the wildcard *"""
+
+        self.A = processObjectListWildcards(self.A, suffixList)
+        self.env = processObjectCounterWildcards(self.env, suffixList)
+        # process wildcards from all agents
+        for ag_name in self.B:
+            self.agents[ag_name].processWildcards(suffixList)
+    # end processWildcards()
+
     def print_colony_components(self, name = "Pcolony", indentSpacesNr = 0):
         """Prints the given Pcolony as a tree, to aid in inspecting the internal structure of the parsed colony
 
@@ -322,6 +331,34 @@ class Agent:
         self.chosenProgramNr = -1 # the program that was chosen for execution
         self.colony = parent_colony # reference to my parent colony (for acces to env, e, ...)
     #end __init__()
+
+    def processWildcards(self, suffixList):
+        """Replaces * wildcards with each of suffixes provided in any program that contains wildcards or in obj
+        When replacing wildcards in programs these are cloned and the rules edited accordingly, finally deleting
+        the original wildcarded program; ex: < e->e, e->d_* > => < e->e, e->d_0 >; < e->e, e->d_1 > 
+        for suffixList = ['0', '1']
+
+        :suffixList: list of strings"""
+
+        self.obj = processObjectCounterWildcards(self.obj, suffixList)
+
+        for program in self.programs[:]:
+            if (program.hasWildcards()):
+                for suffix in suffixList:
+                    newProgram = deepcopy(program)
+                    for rule in newProgram:
+                        # determine which rule has wildcards
+                        if (rule.hasWildcards()):
+                            # replace '*' wildcard with the current suffix
+                            rule.lhs = rule.lhs.replace('*', suffix)
+                            rule.rhs = rule.rhs.replace('*', suffix)
+                            rule.alt_lhs = rule.alt_lhs.replace('*', suffix)
+                            rule.alt_rhs = rule.alt_rhs.replace('*', suffix)
+                    # end for rule
+                    self.programs.append(newProgram)
+                # end for suffix
+                self.programs.remove(program)
+    # end processWildcards()
 
     def choseProgram(self):
         """Chose an executable program (or chose stochastically from a list of executable programs)
