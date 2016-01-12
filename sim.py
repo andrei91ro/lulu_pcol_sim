@@ -189,6 +189,26 @@ class Pcolony:
         self.parentSwarm = None
     #end __init__
 
+    def getDeepCopyOf(self):
+        """Returns a value copy of the Pcolony, similar to a copy constructor in C++
+        :returns: identical value-copy of this Pcolony"""
+
+        newColony = Pcolony()
+        newColony.A = list(self.A)
+        newColony.e = self.e
+        newColony.f = self.f
+        newColony.n = self.n
+        newColony.env = collections.Counter(self.env)
+        newColony.B = list(self.B)
+
+        for ag_name in self.B:
+            # deep copy each agent
+            newColony.agents[ag_name] = self.agents[ag_name].getDeepCopyOf(newColony)
+        newColony.parentSwarm = self.parentSwarm
+
+        return newColony
+    # end getDeepCopyOf()
+
     def processWildcards(self, suffixList):
         """Recursively replaces wildcards with the appropriate replacements (from suffixList) in the
         alphabet A, environment and each agent
@@ -331,6 +351,20 @@ class Agent:
         self.chosenProgramNr = -1 # the program that was chosen for execution
         self.colony = parent_colony # reference to my parent colony (for acces to env, e, ...)
     #end __init__()
+
+    def getDeepCopyOf(self, parent_colony):
+        """Returns a value copy of the Agent, similar to a copy constructor in C++
+        :returns: identical value-copy of this Agent"""
+
+        newAgent = Agent(parent_colony)
+        newAgent.obj = collections.Counter(self.obj)
+
+        for program in self.programs:
+            newAgent.programs.append(program.getDeepCopyOf())
+        # newAgent.chosenProgramNr set at each sim step
+
+        return newAgent
+    # end getDeepCopyOf()
 
     def processWildcards(self, suffixList):
         """Replaces * wildcards with each of suffixes provided in any program that contains wildcards or in obj
@@ -680,6 +714,18 @@ class Program(list):
         """Initialize the underling list used to store rules"""
         list.__init__(self)
 
+    def getDeepCopyOf(self):
+        """Returns a value copy of the Program, similar to a copy constructor in C++
+        :returns: identical value-copy of this Program"""
+
+        newProgram = Program()
+
+        for rule in self:
+            newProgram.append(rule.getDeepCopyOf())
+
+        return newProgram
+    # end getDeepCopyOf()
+
     def hasWildcards(self):
         """Returns true or false depending on whether this program contains rules that use wildcards (such as *) or not
         :returns: True / False """
@@ -711,6 +757,25 @@ class Rule():
         self.alt_type = 0
         self.alt_lhs = '' # Left Hand Side operand for alternative rule
         self.alt_rhs = '' # Right Hand Side operand for alternative rule
+
+    def getDeepCopyOf(self):
+        """Returns a value copy of the Rule, similar to a copy constructor in C++
+        :returns: identical value-copy of this Rule"""
+
+        newRule = Rule()
+        newRule.main_type = self.main_type
+        newRule.exec_rule_nr = self.exec_rule_nr
+
+        newRule.type = self.type
+        newRule.lhs = self.lhs
+        newRule.rhs = self.rhs
+
+        newRule.alt_type = self.alt_type
+        newRule.alt_lhs = self.alt_lhs
+        newRule.alt_rhs = self.alt_rhs
+
+        return newRule
+    # end getDeepCopyOf()
 
     def print(self, indentSpaces = 2, onlyExecutable = False, toString = False) :
         """Print a rule with a given indentation level
