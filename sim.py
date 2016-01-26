@@ -54,25 +54,36 @@ class Pswarm():
 
     """Pswarm class that holds all the components of an Pswarm (colony of colonies)"""
 
-    def __init__(self):
+    def __init__(self, swarm = None):
        self.C = [] # list of colony names
        self.colonies = {} # colony dictionary (colony_name : Pcolony_object)
        self.simResult = {} # simulation step result dictionary (colony_name : SimStepResult object)
        self.global_env = collections.Counter() # store the objects from the global (swarm) environemnt
+
+       if (swarm != None):
+           self.copy_init(swarm)
     # end __init__()
+
+    def copy_init(self, swarm):
+        """Copies all of the members of the swarm object into this instance (copy contructor from C++)
+
+        :swarm: source Pswarm object"""
+
+        self.C = list(swarm.C)
+        self.global_env = collections.Counter(swarm.global_env)
+
+        for col_name in swarm.C:
+            # deep copy each colony and set self as parent swarm
+            self.colonies[col_name] = swarm.colonies[col_name].getDeepCopyOf(self)
+            self.simResult[col_name] = swarm.simResult[col_name]
+
+    # end copy_init()
 
     def getDeepCopyOf(self):
         """Returns a value copy of the Pswarm, similar to a copy constructor in C++
         :returns: identical value-copy of this Pswarm"""
 
-        newSwarm = Pswarm()
-        newSwarm.C = list(self.C)
-        newSwarm.global_env = collections.Counter(self.global_env)
-
-        for col_name in self.C:
-            # deep copy each colony and set newSwarm as parent swarm
-            newSwarm.colonies[col_name] = self.colonies[col_name].getDeepCopyOf(newSwarm)
-            newSwarm.simResult[col_name] = self.simResult[col_name]
+        newSwarm = Pswarm(self)
 
         return newSwarm
     # end getDeepCopyOf()
