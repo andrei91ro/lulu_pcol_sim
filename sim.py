@@ -7,7 +7,7 @@ import logging # for logging functions
 import colorlog # colors log output
 import random # for stochastic chosing of programs
 import time # for time.time()
-from copy import deepcopy # for deepcopy (value not reference as = does for objects)
+#from copy import deepcopy # for deepcopy (value not reference as = does for objects)
 ##########################################################################
 # type definitions
 
@@ -209,16 +209,17 @@ class Pcolony:
         return newColony
     # end getDeepCopyOf()
 
-    def processWildcards(self, suffixList):
+    def processWildcards(self, suffixList, myId):
         """Recursively replaces wildcards with the appropriate replacements (from suffixList) in the
         alphabet A, environment and each agent
-        :suffixList: list of strings that will replace the wildcard *"""
+        :suffixList: list of strings that will replace the wildcard *
+        :myId: string used to replace '%id' wildcard"""
 
-        self.A = processObjectListWildcards(self.A, suffixList)
-        self.env = processObjectCounterWildcards(self.env, suffixList)
+        self.A = processObjectListWildcards(self.A, suffixList, myId)
+        self.env = processObjectCounterWildcards(self.env, suffixList, myId)
         # process wildcards from all agents
         for ag_name in self.B:
-            self.agents[ag_name].processWildcards(suffixList)
+            self.agents[ag_name].processWildcards(suffixList, myId)
     # end processWildcards()
 
     def print_colony_components(self, name = "Pcolony", indentSpacesNr = 0):
@@ -366,23 +367,44 @@ class Agent:
         return newAgent
     # end getDeepCopyOf()
 
-    def processWildcards(self, suffixList):
+    def processWildcards(self, suffixList, myId):
         """Replaces * wildcards with each of suffixes provided in any program that contains wildcards or in obj
         When replacing wildcards in programs these are cloned and the rules edited accordingly, finally deleting
-        the original wildcarded program; ex: < e->e, e->d_* > => < e->e, e->d_0 >; < e->e, e->d_1 > 
+        the original wildcarded program; ex: < e->e, e->d_* > => < e->e, e->d_0 >; < e->e, e->d_1 >
         for suffixList = ['0', '1']
 
-        :suffixList: list of strings"""
+        Replaces %id wildcard with the value of myId in obj and programs
 
-        self.obj = processObjectCounterWildcards(self.obj, suffixList)
+        :suffixList: list of strings
+        :myId: string used to replace '%id' wildcard"""
 
+        self.obj = processObjectCounterWildcards(self.obj, suffixList, myId)
+
+        # processs %id wildcard first because it is shorter
         for program in self.programs[:]:
-            if (program.hasWildcards()):
+            if (program.hasWildcards('%id')):
+                newProgram = program.getDeepCopyOf()
+                for rule in newProgram:
+                    # determine which rule has wildcards
+                    if (rule.hasWildcards('%id')):
+                        # replace '%id' wildcard with myId
+                        rule.lhs = rule.lhs.replace('%id', myId)
+                        rule.rhs = rule.rhs.replace('%id', myId)
+                        rule.alt_lhs = rule.alt_lhs.replace('%id', myId)
+                        rule.alt_rhs = rule.alt_rhs.replace('%id', myId)
+                # end for rule
+                self.programs.append(newProgram)
+                # remove old wildcarded program
+                self.programs.remove(program)
+
+        # process * wildcard
+        for program in self.programs[:]:
+            if (program.hasWildcards('*')):
                 for suffix in suffixList:
-                    newProgram = deepcopy(program)
+                    newProgram = program.getDeepCopyOf()
                     for rule in newProgram:
                         # determine which rule has wildcards
-                        if (rule.hasWildcards()):
+                        if (rule.hasWildcards('*')):
                             # replace '*' wildcard with the current suffix
                             rule.lhs = rule.lhs.replace('*', suffix)
                             rule.rhs = rule.rhs.replace('*', suffix)
@@ -726,12 +748,13 @@ class Program(list):
         return newProgram
     # end getDeepCopyOf()
 
-    def hasWildcards(self):
-        """Returns true or false depending on whether this program contains rules that use wildcards (such as *) or not
+    def hasWildcards(self, card):
+        """Returns true or false depending on whether this program contains rules that use the card wildcard (such as * or %id) or not
+        :card: string representing a wildcard to check for
         :returns: True / False """
 
         for rule in self:
-            if (rule.hasWildcards()):
+            if (rule.hasWildcards(card)):
                 return True
 
         # no rule was found to contain wildcards
@@ -821,16 +844,17 @@ class Rule():
         return result
     # end print()
 
-    def hasWildcards(self):
-        """Returns true or false depending on whether this rule contains wildcards (such as *) or not
+    def hasWildcards(self, card):
+        """Returns true or false depending on whether this rule contains the card wildcard (such as * or %id) or not
+        :card: string representing a wildcard to check for
         :returns: True / False """
 
-        if (('*' in self.lhs) or ('*' in self.rhs)):
+        if ((card in self.lhs) or (card in self.rhs)):
             return True
 
         # check the alternative fields if this rule is conditional
         if (self.main_type == RuleType.conditional):
-            if (('*' in self.alt_lhs) or ('*' in self.alt_rhs)):
+            if ((card in self.alt_lhs) or (card in self.alt_rhs)):
                 return True
 
         # no wildcard has been found
@@ -840,12 +864,13 @@ class Rule():
 
 ##########################################################################
 
-def processObjectListWildcards(objectList, suffixList):
-    """Replaces all * wildcards with n copies that each have appended one element from the provided suffixList
-    ex: objectList = [a, b, c_3, d_*, e], suffixList=['0', '1', '2'] => objectList = [a, b, c_3, e, d_0, d_1, d_2]
+def processObjectListWildcards(objectList, suffixList, myId):
+    """Replaces all * wildcards with n copies that each have appended one element from the provided suffixList and replaces %id wildcards with myId
+    ex: objectList = [a, b, c_3, d_*, e_%id], suffixList=['0', '1', '2'], myId=5 => objectList = [a, b, c_3, e_5, d_0, d_1, d_2]
 
     :objectList: list of objects
     :suffixList: list of strings that are going to be appended to each object that has the * wildcard
+    :myId: string used to replace '%id' wildcard
     :returns: the new list"""
 
     # we iterate over a copy of the object list (in order to modify it)
@@ -858,15 +883,22 @@ def processObjectListWildcards(objectList, suffixList):
             # delete the item that contains the wildcards
             objectList.remove(item)
 
+        if ('%id' in item):
+            # replace the id wildcard with the id parameter
+            objectList.append(item.replace("%id", myId))
+            # delete the item that contains the '%id' wildcard
+            objectList.remove(item)
+
     return objectList
 # end processObjectListWildcard()
 
-def processObjectCounterWildcards(objectCounter, suffixList):
-    """Replaces all * wildcards with n copies that each have appended one element from the provided suffixList
-    ex: objectCounter = [a, b, c_3, d_*, e], suffixList=['0', '1', '2'] => objectCounter = [a, b, c_3, e, d_0, d_1, d_2]
+def processObjectCounterWildcards(objectCounter, suffixList, myId):
+    """Replaces all * wildcards with n copies that each have appended one element from the provided suffixList and replaces %id wildcards with myId
+    ex: objectCounter = [a, b, c_3, d_*, e_%id], suffixList=['0', '1', '2'], myId=5 => objectCounter = [a, b, c_3, e_5, d_0, d_1, d_2]
 
     :objectCounter: collections.Counter of objects
     :suffixList: list of strings that are going to be appended to each object that has the * wildcard
+    :myId: string used to replace '%id' wildcard
     :returns: the new counter"""
 
     newCounter = collections.Counter()
@@ -878,6 +910,8 @@ def processObjectCounterWildcards(objectCounter, suffixList):
             # add the new items to newCounter
             for suffix in suffixList:
                 newCounter[item.replace("*", suffix)] = objectCounter[item]
+        if ('%id' in item):
+            newCounter[item.replace("%id", myId)] = objectCounter[item]
         else:
             # store the original (non wildcarded) item in the newCounter
             newCounter[item] = objectCounter[item]
@@ -892,7 +926,7 @@ def tokenize(code):
         ('NUMBER',        r'\d+'),         # Integer number
         ('ASSIGN',        r'='),           # Assignment operator '='
         ('END',           r';'),           # Statement terminator ';'
-        ('ID',            r'[\w\*]+'),     # Identifiers
+        ('ID',            r'[\w\*\%]+'),   # Identifiers (allows * and % for use as wildcards)
         ('L_BRACE',       r'\('),          # Left brace '('
         ('R_BRACE',       r'\)'),          # Right brace ')'
         ('L_CURLY_BRACE', r'{'),           # Left curly brace '{'
