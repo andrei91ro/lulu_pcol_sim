@@ -61,6 +61,22 @@ class Pswarm():
        self.global_env = collections.Counter() # store the objects from the global (swarm) environemnt
     # end __init__()
 
+    def getDeepCopyOf(self):
+        """Returns a value copy of the Pswarm, similar to a copy constructor in C++
+        :returns: identical value-copy of this Pswarm"""
+
+        newSwarm = Pswarm()
+        newSwarm.C = list(self.C)
+        newSwarm.global_env = collections.Counter(self.global_env)
+
+        for col_name in self.C:
+            # deep copy each colony and set newSwarm as parent swarm
+            newSwarm.colonies[col_name] = self.colonies[col_name].getDeepCopyOf(newSwarm)
+            newSwarm.simResult[col_name] = self.simResult[col_name]
+
+        return newSwarm
+    # end getDeepCopyOf()
+
     def print_swarm_components(self):
         """Print the contents of this Pswarm"""
         print("Pswarm = {")
@@ -189,8 +205,9 @@ class Pcolony:
         self.parentSwarm = None
     #end __init__
 
-    def getDeepCopyOf(self):
+    def getDeepCopyOf(self, parent_swarm = None):
         """Returns a value copy of the Pcolony, similar to a copy constructor in C++
+        :parent_swarm: Pswarm object that, if specified, will be assigned as parentSwarm for the new P colony
         :returns: identical value-copy of this Pcolony"""
 
         newColony = Pcolony()
@@ -204,7 +221,11 @@ class Pcolony:
         for ag_name in self.B:
             # deep copy each agent
             newColony.agents[ag_name] = self.agents[ag_name].getDeepCopyOf(newColony)
-        newColony.parentSwarm = self.parentSwarm
+
+        if (parent_swarm != None):
+            newColony.parentSwarm = parent_swarm
+        else:
+            newColony.parentSwarm = self.parentSwarm
 
         return newColony
     # end getDeepCopyOf()
