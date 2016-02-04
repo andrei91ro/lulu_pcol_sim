@@ -308,7 +308,7 @@ class Pcolony:
             return SimStepResult.no_more_executables # simulation cannot continue
 
         for agent_name in runnableAgents:
-            logging.info("Running Agent %s  Program %d" % (agent_name, self.agents[agent_name].chosenProgramNr))
+            logging.info("Running Agent %s  P%d = < %s >" % (agent_name, self.agents[agent_name].chosenProgramNr, self.agents[agent_name].programs[self.agents[agent_name].chosenProgramNr].print(onlyExecutable = True)))
             # if there were errors encountered during program execution
             if (self.agents[agent_name].executeProgram() == False):
                 logging.error("Execution failed for agent %s, stopping simulation" % agent_name)
@@ -780,6 +780,22 @@ class Program(list):
         return newProgram
     # end getDeepCopyOf()
 
+    def print(self, onlyExecutable = False):
+        """
+
+        :returns: TODO """
+
+        result = ""
+
+        for rule in self:
+                result += rule.print(toString = True, onlyExecutable = onlyExecutable) + ", "
+
+        # delete last comma ',' from the program printing
+        result = result[:result.rfind(",")]
+
+        return result
+    # end print()
+
     def hasWildcards(self, card):
         """Returns true or false depending on whether this program contains rules that use the card wildcard (such as * or %id) or not
         :card: string representing a wildcard to check for
@@ -869,9 +885,9 @@ class Rule():
                         print(" " * indentSpaces + "%s %s %s" % (self.lhs, ruleNames[self.type], self.rhs))
                 else:
                     if (toString):
-                        result = "%s %s %s" % (self.rhs, ruleNames[self.alt_type], self.rhs)
+                        result = "%s %s %s" % (self.alt_lhs, ruleNames[self.alt_type], self.alt_rhs)
                     else:
-                        print(" " * indentSpaces + "%s %s %s" % (self.rhs, ruleNames[self.alt_type], self.rhs))
+                        print(" " * indentSpaces + "%s %s %s" % (self.alt_lhs, ruleNames[self.alt_type], self.alt_rhs))
         
         return result
     # end print()
