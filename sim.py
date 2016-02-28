@@ -1316,8 +1316,8 @@ typedef enum _rule_type {
         fout.write("\n} rule_type_t;");
 
         fout.write("\n\n// the tables are generated according to the order of the rules defined in rule_type_t");
-        fout.write("\nrule_type_t lookupFirst[] = {%s}" % lookup1);
-        fout.write("\nrule_type_t lookupSecond[] = {%s}" % lookup2);
+        fout.write("\nrule_type_t lookupFirst[] = {%s};" % lookup1);
+        fout.write("\nrule_type_t lookupSecond[] = {%s};" % lookup2);
 
         fout.write("\n\n#endif");
 
