@@ -1263,10 +1263,11 @@ def readInputFile(filename, printTokens=False):
 def writeRulesHeader(path):
     """Write a rules.h file at the given path that contains all of the rule types that can be processed by lulu.
 
-    :path: The path of the file that will be written
+    :path: The path of the file that will be written (only filename without extension)
     :returns: TRUE / FALSE depending on the success of the operation"""
 
-    with open(path, "w") as fout:
+    logging.info("Generating rules C header in %s" % path + ".h")
+    with open(path + ".h", "w") as fout:
         fout.write("""// vim:filetype=c
 /**
  * @file lulu.h
@@ -1277,8 +1278,8 @@ def writeRulesHeader(path):
  * @author Catalin Buiu
  * @date 2016-02-08
  */
-#ifndef TYPES_H
-#define TYPES_H
+#ifndef RULES_H
+#define RULES_H
 
 #include <stdint.h>
 typedef enum _rule_type {
@@ -1316,10 +1317,19 @@ typedef enum _rule_type {
         fout.write("\n} rule_type_t;");
 
         fout.write("\n\n// the tables are generated according to the order of the rules defined in rule_type_t");
-        fout.write("\nrule_type_t lookupFirst[] = {%s};" % lookup1);
-        fout.write("\nrule_type_t lookupSecond[] = {%s};" % lookup2);
+        #fout.write("\nrule_type_t lookupFirst[] = {%s};" % lookup1);
+        #fout.write("\nrule_type_t lookupSecond[] = {%s};" % lookup2);
+        fout.write("\nextern rule_type_t lookupFirst[];");
+        fout.write("\nextern rule_type_t lookupSecond[];");
 
         fout.write("\n\n#endif");
+    #end with header fout
+
+    logging.info("Generating rules C source in %s" % path + ".c")
+    with open(path + ".c", "w") as fout:
+        fout.write("""\n#include "%s.h";""" % path);
+        fout.write("\nrule_type_t lookupFirst[] = {%s};" % lookup1);
+        fout.write("\nrule_type_t lookupSecond[] = {%s};" % lookup2);
 
 # end writeRulesHeader()
 
@@ -1366,7 +1376,6 @@ if (__name__ == "__main__"):
             exit(1)
         else:
             headerPath = sys.argv[sys.argv.index("--ruleheader") + 1];
-            logging.info("Generating rules C header in %s" % headerPath)
             writeRulesHeader(headerPath);
             logging.info("Exiting after header generation")
             exit(0);
