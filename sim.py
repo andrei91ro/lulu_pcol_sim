@@ -1327,7 +1327,7 @@ typedef enum _rule_type {
 
     logging.info("Generating rules C source in %s" % path + ".c")
     with open(path + ".c", "w") as fout:
-        fout.write("""\n#include "%s.h" """ % path);
+        fout.write("""\n#include "%s.h" """ % path.split("/")[-1]);
         fout.write("\nrule_type_t lookupFirst[] = {%s};" % lookup1);
         fout.write("\nrule_type_t lookupSecond[] = {%s};" % lookup2);
 
