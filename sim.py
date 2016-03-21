@@ -1284,14 +1284,19 @@ def writeRulesHeader(path):
 #include <stdint.h>
 typedef enum _rule_type {
     //non-conditional (single rules)
-    RULE_TYPE_NONE = -1,
+    RULE_TYPE_NONE = 0,
             """ % time.strftime("%d %h %Y at %H:%M"));
+
+        # concatenated string representation of any type of rule
+        # used only in the C pcol sim for debug purposes
+        ruleNamesString = ""
 
         # write non-conditional rules
         for rule in RuleType:
             if (rule == RuleType.conditional):
                 continue
             fout.write("\n    RULE_TYPE_%s," % rule.name.upper());
+            ruleNamesString += """[RULE_TYPE_%s] = "%s", """ % (rule.name.upper(), ruleNames[rule])
 
         # lookup tables are concatenated strings
         lookup1 = ""
@@ -1322,6 +1327,10 @@ typedef enum _rule_type {
         fout.write("\nextern rule_type_t lookupFirst[];");
         fout.write("\nextern rule_type_t lookupSecond[];");
 
+        fout.write("""\n\n#ifdef PCOL_SIM
+    extern char* ruleNames[];
+#endif""")
+
         fout.write("\n\n#endif");
     #end with header fout
 
@@ -1330,7 +1339,9 @@ typedef enum _rule_type {
         fout.write("""\n#include "%s.h" """ % path.split("/")[-1]);
         fout.write("\nrule_type_t lookupFirst[] = {%s};" % lookup1);
         fout.write("\nrule_type_t lookupSecond[] = {%s};" % lookup2);
-
+        fout.write("""\n\n#ifdef PCOL_SIM
+    char* ruleNames[] = {%s};
+#endif""" % ruleNamesString)
 # end writeRulesHeader()
 
 ##########################################################################
