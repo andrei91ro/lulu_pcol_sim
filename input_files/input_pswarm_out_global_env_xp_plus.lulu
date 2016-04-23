@@ -1,0 +1,17 @@
+pswarm = {
+    global_env = {};
+    in_global_env = {};
+    out_global_env = {f, l_p};
+    C = {xp_plus};
+        xp_plus = {
+            A = {l_p};
+            e = e;
+            f = f;
+            n = 2;
+            env = {f, f, f, l_p};
+            B = {AG_1};
+                AG_1 = ({e, e};
+                    < e->f, e<=O>l_p >,
+                    < l_p->e, f<=O>e >);
+        };
+}

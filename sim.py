@@ -19,6 +19,8 @@ class RuleType(Enum):
     communication = 2
     conditional = 3
     exteroceptive = 4
+    in_exteroceptive = 5
+    out_exteroceptive = 6
 
 #end class RuleType
 
@@ -45,6 +47,8 @@ ruleNames = {
         RuleType.communication : '<->',
         RuleType.conditional : '/',
         RuleType.exteroceptive : '<=>',
+        RuleType.in_exteroceptive : '<I=>',
+        RuleType.out_exteroceptive : '<=O>',
 }
 
 # tuple used to describe parsed data
@@ -59,6 +63,8 @@ class Pswarm():
        self.colonies = {} # colony dictionary (colony_name : Pcolony_object)
        self.simResult = {} # simulation step result dictionary (colony_name : SimStepResult object)
        self.global_env = collections.Counter() # store the objects from the global (swarm) environemnt
+       self.in_global_env = collections.Counter() # store the objects from the INPUT global (swarm) environemnt
+       self.out_global_env = collections.Counter() # store the objects from the OUTPUT global (swarm) environemnt
 
        if (swarm != None):
            self.copy_init(swarm)
@@ -71,6 +77,8 @@ class Pswarm():
 
         self.C = list(swarm.C)
         self.global_env = collections.Counter(swarm.global_env)
+        self.in_global_env = collections.Counter(swarm.in_global_env)
+        self.out_global_env = collections.Counter(swarm.out_global_env)
 
         for col_name in swarm.C:
             # deep copy each colony and set self as parent swarm
@@ -92,6 +100,8 @@ class Pswarm():
         """Print the contents of this Pswarm"""
         print("Pswarm = {")
         print("    global_env = %s" % self.global_env.most_common(None))
+        print("    in_global_env = %s" % self.in_global_env.most_common(None))
+        print("    out_global_env = %s" % self.out_global_env.most_common(None))
         print("    C = %s" % self.C)
         for colony_name in self.C:
             print() # add a line betwen colonies
@@ -462,6 +472,8 @@ class Agent:
             required_obj = collections.Counter()
             required_env = collections.Counter()
             required_global_env = collections.Counter()
+            required_in_global_env = collections.Counter()
+            required_out_global_env = collections.Counter()
 
             executable = True
             for rule in program:
@@ -484,6 +496,16 @@ class Agent:
                         executable = False;
                         break;
 
+                    # in_exteroceptive rules require the right hand side obj to be available in the INPUT global Pswarm environment
+                    if (rule.main_type == RuleType.in_exteroceptive and rule.rhs not in self.colony.parentSwarm.in_global_env):
+                        executable = False;
+                        break;
+
+                    # out_exteroceptive rules require the right hand side obj to be available in the OUTPUT global Pswarm environment
+                    if (rule.main_type == RuleType.out_exteroceptive and rule.rhs not in self.colony.parentSwarm.out_global_env):
+                        executable = False;
+                        break;
+
                     rule.exec_rule_nr = RuleExecOption.first # the only option available
 
                     # if we reach this step, then the rule is executable
@@ -494,7 +516,13 @@ class Agent:
 
                     if (rule.main_type == RuleType.exteroceptive):
                         required_global_env[rule.rhs] += 1 # rhs part of the rule has to be in the Pswarm global environment
-                
+
+                    if (rule.main_type == RuleType.in_exteroceptive):
+                        required_in_global_env[rule.rhs] += 1 # rhs part of the rule has to be in the Pswarm INPUT global environment
+
+                    if (rule.main_type == RuleType.out_exteroceptive):
+                        required_out_global_env[rule.rhs] += 1 # rhs part of the rule has to be in the Pswarm OUTPUT global environment
+
                 # if this is a conditional rule
                 else:
                     # all types of rules require the left hand side obj to be available in the agent
@@ -503,8 +531,13 @@ class Agent:
                         executable = False;
                         break; # stop checking
                     #if the first rule is of communication type and the right hand side object is not in the environement
-                    #   or the first rule is of exteroceptive type and the right hand side object is not in the environement
-                    if ( (rule.type == RuleType.communication and rule.rhs not in self.colony.env) or (rule.type == RuleType.exteroceptive and rule.rhs not in self.colony.parentSwarm.global_env) ):
+                    #   or the first rule is of exteroceptive type and the right hand side object is not in the global environement
+                    #   or the first rule is of in_exteroceptive type and the right hand side object is not in the INPUT global environement
+                    #   or the first rule is of out_exteroceptive type and the right hand side object is not in the OUTPUT global environement
+                    if ( (rule.type == RuleType.communication and rule.rhs not in self.colony.env)
+                            or (rule.type == RuleType.exteroceptive and rule.rhs not in self.colony.parentSwarm.global_env)
+                            or (rule.type == RuleType.in_exteroceptive and rule.rhs not in self.colony.parentSwarm.in_global_env)
+                            or (rule.type == RuleType.out_exteroceptive and rule.rhs not in self.colony.parentSwarm.out_global_env) ):
                         # the first rule cannot be executed so we check the second rule
 
                         # if the second rule is of communication type then the right hand side object has to be in the environement
@@ -514,6 +547,16 @@ class Agent:
 
                         # if the second rule is of exteroceptive type then the right hand side object has to be in the global Pswarm environement
                         if (rule.alt_type == RuleType.exteroceptive and rule.alt_rhs not in self.colony.parentSwarm.global_env):
+                            executable = False;
+                            break;
+
+                        # if the second rule is of in_exteroceptive type then the right hand side object has to be in the INPUT global Pswarm environement
+                        if (rule.alt_type == RuleType.in_exteroceptive and rule.alt_rhs not in self.colony.parentSwarm.in_global_env):
+                            executable = False;
+                            break;
+
+                        # if the second rule is of out_exteroceptive type then the right hand side object has to be in the OUTPUT global Pswarm environement
+                        if (rule.alt_type == RuleType.out_exteroceptive and rule.alt_rhs not in self.colony.parentSwarm.out_global_env):
                             executable = False;
                             break;
 
@@ -529,7 +572,13 @@ class Agent:
 
                             if (rule.alt_type == RuleType.exteroceptive):
                                 required_global_env[rule.alt_rhs] += 1 # alt_rhs part of the rule has to be in the Pswarm global environment
-                             
+
+                            if (rule.alt_type == RuleType.in_exteroceptive):
+                                required_in_global_env[rule.alt_rhs] += 1 # alt_rhs part of the rule has to be in the Pswarm INPUT global environment
+
+                            if (rule.alt_type == RuleType.out_exteroceptive):
+                                required_out_global_env[rule.alt_rhs] += 1 # alt_rhs part of the rule has to be in the Pswarm OUTPUT global environment
+
                     # the first rule can be executed
                     else:
                         rule.exec_rule_nr = RuleExecOption.first # mark the first rule as executable
@@ -542,7 +591,13 @@ class Agent:
 
                         if (rule.type == RuleType.exteroceptive):
                             required_global_env[rule.rhs] += 1 # rhs part of the rule has to be in the Pswarm global environment
-                
+
+                        if (rule.type == RuleType.in_exteroceptive):
+                            required_in_global_env[rule.rhs] += 1 # rhs part of the rule has to be in the Pswarm INPUT global environment
+
+                        if (rule.type == RuleType.out_exteroceptive):
+                            required_out_global_env[rule.rhs] += 1 # rhs part of the rule has to be in the Pswarm OUTPUT global environment
+
             #end for rule
 
             # if all previous rule tests confirm that this program is executable
@@ -571,6 +626,26 @@ class Agent:
                 for k, v in required_global_env.items():
                     if (self.colony.parentSwarm.global_env[k] < v):
                         logging.debug("required_global_env check failed")
+                        executable = False # this program is not executable, check another program
+
+                # if e object is among the required objects in the Pswarm INPUT global_environment
+                if ('e' in required_in_global_env):
+                    # ignore this requirement because in theory, there are always enough e objects in the INPUT global_environment
+                    del required_in_global_env['e']
+                # check that the Pswarm in_global_env requirements of the program are met
+                for k, v in required_in_global_env.items():
+                    if (self.colony.parentSwarm.in_global_env[k] < v):
+                        logging.debug("required_in_global_env check failed")
+                        executable = False # this program is not executable, check another program
+
+                # if e object is among the required objects in the Pswarm OUTPUT global_environment
+                if ('e' in required_out_global_env):
+                    # ignore this requirement because in theory, there are always enough e objects in the OUTPUT global_environment
+                    del required_out_global_env['e']
+                # check that the Pswarm out_global_env requirements of the program are met
+                for k, v in required_out_global_env.items():
+                    if (self.colony.parentSwarm.out_global_env[k] < v):
+                        logging.debug("required_out_global_env check failed")
                         executable = False # this program is not executable, check another program
 
             if (executable):
@@ -656,7 +731,7 @@ class Agent:
                     self.obj[rule.rhs] += 1
 
                 elif (rule.type == RuleType.exteroceptive):
-                        # if the rule.rhs object is not in the global swarm environement any more
+                    # if the rule.rhs object is not in the global swarm environement any more
                     if (self.colony.parentSwarm.global_env[rule.rhs] <= 0):
                         # this is an error, some other agent modified the environement
                         logging.error("Object %s was required in the global swarm environement by rule %s but was not found" % (rule.rhs, rule.print(toString = True)))
@@ -678,8 +753,63 @@ class Agent:
                         # transfer object from agent.obj to global swarm environment
                         self.colony.parentSwarm.global_env[rule.lhs] += 1
  
-                    # transfer object from environment to agent.obj
+                    # transfer object from global environment to agent.obj
                     self.obj[rule.rhs] += 1
+                #endif RuleType.exteroceptive
+
+                elif (rule.type == RuleType.in_exteroceptive):
+                    # if the rule.rhs object is not in the INPUT global swarm environement any more
+                    if (self.colony.parentSwarm.in_global_env[rule.rhs] <= 0):
+                        # this is an error, some other agent modified the environement
+                        logging.error("Object %s was required in the INPUT global swarm environement by rule %s but was not found" % (rule.rhs, rule.print(toString = True)))
+                        logging.error("Please check your rules and try again")
+                        return False
+
+                    # remove one instance of rule.rhs from INPUT global swarm env only if it not 'e'
+                    # 'e' object should remain constant in the environment
+                    if (rule.rhs != self.colony.e):
+                        # remove one instance of rule.rhs from INPUT global swarm env
+                        self.colony.parentSwarm.in_global_env[rule.rhs] -= 1;
+                        # 0 counts are allowed so if this is the case
+                        if (self.colony.parentSwarm.in_global_env[rule.rhs] == 0):
+                            # remove the entry from the env counter
+                            del self.colony.parentSwarm.in_global_env[rule.rhs]
+
+                    # only modify the INPUT global swarm environment if the lhs object is not e
+                    if (rule.lhs != self.colony.e):
+                        # transfer object from agent.obj to INPUT global swarm environment
+                        self.colony.parentSwarm.in_global_env[rule.lhs] += 1
+
+                    # transfer object from INPUT global environment to agent.obj
+                    self.obj[rule.rhs] += 1
+                #endif RuleType.in_exteroceptive
+
+                elif (rule.type == RuleType.out_exteroceptive):
+                        # if the rule.rhs object is not in the OUTPUT global swarm environement any more
+                    if (self.colony.parentSwarm.out_global_env[rule.rhs] <= 0):
+                        # this is an error, some other agent modified the environement
+                        logging.error("Object %s was required in the OUTPUT global swarm environement by rule %s but was not found" % (rule.rhs, rule.print(toString = True)))
+                        logging.error("Please check your rules and try again")
+                        return False
+
+                    # remove one instance of rule.rhs from OUTPUT global swarm env only if it not 'e'
+                    # 'e' object should remain constant in the environment
+                    if (rule.rhs != self.colony.e):
+                        # remove one instance of rule.rhs from OUTPUT global swarm env
+                        self.colony.parentSwarm.out_global_env[rule.rhs] -= 1;
+                        # 0 counts are allowed so if this is the case
+                        if (self.colony.parentSwarm.out_global_env[rule.rhs] == 0):
+                            # remove the entry from the env counter
+                            del self.colony.parentSwarm.out_global_env[rule.rhs]
+
+                    # only modify the OUTPUT global swarm environment if the lhs object is not e
+                    if (rule.lhs != self.colony.e):
+                        # transfer object from agent.obj to OUTPUT global swarm environment
+                        self.colony.parentSwarm.out_global_env[rule.lhs] += 1
+
+                    # transfer object from OUTPUT global environment to agent.obj
+                    self.obj[rule.rhs] += 1
+                #endif RuleType.out_exteroceptive
 
             # if this is a conditional rule and the second rule was chosen for execution
             elif (rule.exec_rule_nr == RuleExecOption.second):
@@ -736,7 +866,7 @@ class Agent:
                         logging.error("Object %s was required in the global swarm environement by rule %s but was not found" % (rule.alt_rhs, rule.print(toString = True)))
                         logging.error("Please check your rules and try again")
                         return False
-                    
+
                     # remove one instance of rule.alt_rhs from global swarm env only if it not 'e'
                     # 'e' object should remain constant in the environment
                     if (rule.alt_rhs != self.colony.e):
@@ -749,11 +879,66 @@ class Agent:
 
                     # transfer object from environment to agent.obj
                     self.obj[rule.alt_rhs] += 1
-                    
+
                     # only modify the global swarm environment if the alt_lhs object is not e
-                    if (rule.alt_lhs != self.colony.e): 
+                    if (rule.alt_lhs != self.colony.e):
                         # transfer object from agent.obj to environment
                         self.colony.parentSwarm.global_env[rule.alt_lhs] += 1
+                #end elif rule.alt_type == RuleType.exteroceptive
+
+                elif (rule.alt_type == RuleType.in_exteroceptive):
+                    # if the rule.alt_rhs object is not in the INPUT global swarm environement any more
+                    if (self.colony.parentSwarm.in_global_env[rule.alt_rhs] <= 0):
+                        # this is an error, some other agent modified the environement
+                        logging.error("Object %s was required in the INPUT global swarm environement by rule %s but was not found" % (rule.alt_rhs, rule.print(toString = True)))
+                        logging.error("Please check your rules and try again")
+                        return False
+
+                    # remove one instance of rule.alt_rhs from INPUT global swarm env only if it not 'e'
+                    # 'e' object should remain constant in the environment
+                    if (rule.alt_rhs != self.colony.e):
+                        # remove one instance of rule.alt_rhs from INPUT global swarm env
+                        self.colony.parentSwarm.in_global_env[rule.alt_rhs] -= 1;
+                        # 0 counts are allowed so if this is the case
+                        if (self.colony.parentSwarm.in_global_env[rule.alt_rhs] == 0):
+                            # remove the entry from the env counter
+                            del self.colony.parentSwarm.in_global_env[rule.alt_rhs]
+
+                    # transfer object from environment to agent.obj
+                    self.obj[rule.alt_rhs] += 1
+
+                    # only modify the INPUT global swarm environment if the alt_lhs object is not e
+                    if (rule.alt_lhs != self.colony.e):
+                        # transfer object from agent.obj to environment
+                        self.colony.parentSwarm.in_global_env[rule.alt_lhs] += 1
+                #end elif rule.alt_type == RuleType.in_exteroceptive
+
+                elif (rule.alt_type == RuleType.out_exteroceptive):
+                    # if the rule.alt_rhs object is not in the OUTPUT global swarm environement any more
+                    if (self.colony.parentSwarm.out_global_env[rule.alt_rhs] <= 0):
+                        # this is an error, some other agent modified the environement
+                        logging.error("Object %s was required in the OUTPUT global swarm environement by rule %s but was not found" % (rule.alt_rhs, rule.print(toString = True)))
+                        logging.error("Please check your rules and try again")
+                        return False
+
+                    # remove one instance of rule.alt_rhs from OUTPUT global swarm env only if it not 'e'
+                    # 'e' object should remain constant in the environment
+                    if (rule.alt_rhs != self.colony.e):
+                        # remove one instance of rule.alt_rhs from OUTPUT global swarm env
+                        self.colony.parentSwarm.out_global_env[rule.alt_rhs] -= 1;
+                        # 0 counts are allowed so if this is the case
+                        if (self.colony.parentSwarm.out_global_env[rule.alt_rhs] == 0):
+                            # remove the entry from the env counter
+                            del self.colony.parentSwarm.out_global_env[rule.alt_rhs]
+
+                    # transfer object from environment to agent.obj
+                    self.obj[rule.alt_rhs] += 1
+
+                    # only modify the OUTPUT global swarm environment if the alt_lhs object is not e
+                    if (rule.alt_lhs != self.colony.e):
+                        # transfer object from agent.obj to environment
+                        self.colony.parentSwarm.out_global_env[rule.alt_lhs] += 1
+                #end elif rule.alt_type == RuleType.out_exteroceptive
             # end elif exec_rule_nr == second
         
         # rule execution finished succesfully
@@ -984,6 +1169,8 @@ def tokenize(code):
         #order counts here (the more complex rules go first)
         ('COMMUNICATION', r'<->'),         # Communication rule sign '<->'
         ('EXTEROCEPTIVE', r'<=>'),         # Exteroceptive rule sign '<=>'
+        ('IN_EXTEROCEPTIVE',  r'<I=>'),    # In_Exteroceptive rule sign '<I=>'
+        ('OUT_EXTEROCEPTIVE', r'<=O>'),    # Out_Exteroceptive rule sign '<=O>'
         ('EVOLUTION',     r'->'),          # Evolution rule sign '->'
         ('SMALLER',       r'<'),           # Smaller sign '<'
         ('LARGER',        r'>'),           # Larger sign '>'
@@ -1065,6 +1252,22 @@ def process_tokens(tokens, parent, index):
                     if ('e' not in objects):
                         objects.append('e')
                     result.global_env = collections.Counter(objects)
+
+                elif (prev_token.value == 'in_global_env'):
+                    logging.info("building list");
+                    index, objects = process_tokens(tokens, list(), index + 1);
+                    # make sure that 1 simbolic e object is in env
+                    if ('e' not in objects):
+                        objects.append('e')
+                    result.in_global_env = collections.Counter(objects)
+
+                elif (prev_token.value == 'out_global_env'):
+                    logging.info("building list");
+                    index, objects = process_tokens(tokens, list(), index + 1);
+                    # make sure that 1 simbolic e object is in env
+                    if ('e' not in objects):
+                        objects.append('e')
+                    result.out_global_env = collections.Counter(objects)
 
                 if (prev_token.value == 'C'):
                     logging.info("building list");
@@ -1171,6 +1374,10 @@ def process_tokens(tokens, parent, index):
                         rule.type = RuleType.communication
                     elif (token.type == 'EXTEROCEPTIVE'):
                         rule.type = RuleType.exteroceptive
+                    elif (token.type == 'IN_EXTEROCEPTIVE'):
+                        rule.type = RuleType.in_exteroceptive
+                    elif (token.type == 'OUT_EXTEROCEPTIVE'):
+                        rule.type = RuleType.out_exteroceptive
                     elif (token.type == 'CHECK_SIGN'):
                         rule.main_type = RuleType.conditional
                 
@@ -1188,6 +1395,10 @@ def process_tokens(tokens, parent, index):
                         rule.alt_type = RuleType.communication
                     elif (token.type == 'EXTEROCEPTIVE'):
                         rule.alt_type = RuleType.exteroceptive
+                    elif (token.type == 'IN_EXTEROCEPTIVE'):
+                        rule.alt_type = RuleType.in_exteroceptive
+                    elif (token.type == 'OUT_EXTEROCEPTIVE'):
+                        rule.alt_type = RuleType.out_exteroceptive
                     elif (token.type == 'CHECK_SIGN'):
                         rule.main_type = RuleType.conditional
         
