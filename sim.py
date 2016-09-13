@@ -550,7 +550,7 @@ class Agent:
                 # check that the Agent obj requirements of the program are met
                 for k, v in required_obj.items():
                     if (self.obj[k] < v):
-                        logging.debug("required_obj check failed")
+                        logging.debug("required_obj check failed, required_obj = %s, obj = %s" % (required_obj, self.obj))
                         executable = False # this program is not executable, check another program
 
                 # if e object is among the required objects in the Pcolony environment
@@ -560,7 +560,7 @@ class Agent:
                 # check that the Pcolony env requirements of the program are met
                 for k, v in required_env.items():
                     if (self.colony.env[k] < v):
-                        logging.debug("required_env check failed")
+                        logging.debug("required_env check failed, required_env = %s, env = %s" % (required_env, self.colony.env))
                         executable = False # this program is not executable, check another program
 
                 # if e object is among the required objects in the Pswarm global_environment
@@ -570,7 +570,7 @@ class Agent:
                 # check that the Pswarm global_env requirements of the program are met
                 for k, v in required_global_env.items():
                     if (self.colony.parentSwarm.global_env[k] < v):
-                        logging.debug("required_global_env check failed")
+                        logging.debug("required_global_env check failed, required_global_env = %s, global_env = %s" % (required_global_env, self.colony.parentSwarm.global_env))
                         executable = False # this program is not executable, check another program
 
             if (executable):
