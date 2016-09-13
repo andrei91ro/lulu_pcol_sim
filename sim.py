@@ -494,45 +494,26 @@ class Agent:
 
                     if (rule.main_type == RuleType.exteroceptive):
                         required_global_env[rule.rhs] += 1 # rhs part of the rule has to be in the Pswarm global environment
-                
+
                 # if this is a conditional rule
                 else:
+                    # we first check the first part of the conditional rule (as a normal rule)
+
                     # all types of rules require the left hand side obj to be available in the agent
-                    # if not in the prioritary rule then at least in the alternative rule
-                    if ((rule.lhs not in self.obj) and (rule.alt_lhs not in self.obj)):
+                    if (rule.lhs not in self.obj):
                         executable = False;
-                        break; # stop checking
-                    #if the first rule is of communication type and the right hand side object is not in the environement
-                    #   or the first rule is of exteroceptive type and the right hand side object is not in the environement
-                    if ( (rule.type == RuleType.communication and rule.rhs not in self.colony.env) or (rule.type == RuleType.exteroceptive and rule.rhs not in self.colony.parentSwarm.global_env) ):
-                        # the first rule cannot be executed so we check the second rule
 
-                        # if the second rule is of communication type then the right hand side object has to be in the environement
-                        if (rule.alt_type == RuleType.communication and rule.alt_rhs not in self.colony.env):
-                            executable = False;
-                            break;
+                    # communication rules require the right hand side obj to be available in the environement
+                    if (rule.type == RuleType.communication and rule.rhs not in self.colony.env):
+                        executable = False;
 
-                        # if the second rule is of exteroceptive type then the right hand side object has to be in the global Pswarm environement
-                        if (rule.alt_type == RuleType.exteroceptive and rule.alt_rhs not in self.colony.parentSwarm.global_env):
-                            executable = False;
-                            break;
+                    # exteroceptive rules require the right hand side obj to be available in the global Pswarm environment
+                    if (rule.type == RuleType.exteroceptive and rule.rhs not in self.colony.parentSwarm.global_env):
+                        executable = False;
 
-                       # the second rule can be executed (and the first cannot)
-                        else:
-                            rule.exec_rule_nr = RuleExecOption.second # mark the second rule as executable
-
-                            # if we reach this step, then the rule is executable
-                            required_obj[rule.alt_lhs] += 1 # all rules need the alt_lhs to be in obj
-
-                            if (rule.alt_type == RuleType.communication):
-                                required_env[rule.alt_rhs] += 1 # alt_rhs part of the rule has to be in the Pcolony environment
-
-                            if (rule.alt_type == RuleType.exteroceptive):
-                                required_global_env[rule.alt_rhs] += 1 # alt_rhs part of the rule has to be in the Pswarm global environment
-                             
-                    # the first rule can be executed
-                    else:
-                        rule.exec_rule_nr = RuleExecOption.first # mark the first rule as executable
+                    # if the first part of the conditional rule was executable
+                    if (executable):
+                        rule.exec_rule_nr = RuleExecOption.first # the only option available
 
                         # if we reach this step, then the rule is executable
                         required_obj[rule.lhs] += 1 # all rules need the lhs to be in obj
@@ -542,7 +523,37 @@ class Agent:
 
                         if (rule.type == RuleType.exteroceptive):
                             required_global_env[rule.rhs] += 1 # rhs part of the rule has to be in the Pswarm global environment
-                
+
+                    # otherwise check the second part of the conditional rule
+                    else:
+                        # reconsider this program as executable
+                        executable = True
+                        # all types of rules require the left hand side obj to be available in the agent
+                        if (rule.alt_lhs not in self.obj):
+                            executable = False;
+                            break; # stop checking
+
+                        # communication rules require the right hand side obj to be available in the environement
+                        if (rule.alt_type == RuleType.communication and rule.alt_rhs not in self.colony.env):
+                            executable = False;
+                            break;
+
+                        # exteroceptive rules require the right hand side obj to be available in the global Pswarm environment
+                        if (rule.alt_type == RuleType.exteroceptive and rule.alt_rhs not in self.colony.parentSwarm.global_env):
+                            executable = False;
+                            break;
+
+                        rule.exec_rule_nr = RuleExecOption.second # the only option available
+
+                        # if we reach this step, then the rule is executable
+                        required_obj[rule.alt_lhs] += 1 # all rules need the alt_lhs to be in obj
+
+                        if (rule.alt_type == RuleType.communication):
+                            required_env[rule.alt_rhs] += 1 # alt_rhs part of the rule has to be in the Pcolony environment
+
+                        if (rule.alt_type == RuleType.exteroceptive):
+                            required_global_env[rule.alt_rhs] += 1 # alt_rhs part of the rule has to be in the Pswarm global environment
+
             #end for rule
 
             # if all previous rule tests confirm that this program is executable
