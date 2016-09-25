@@ -11,6 +11,8 @@ import time # for time.time()
 ##########################################################################
 # type definitions
 
+logLevel = logging.INFO
+
 class RuleType(Enum):
 
     """Enumeration of rule types """
@@ -264,25 +266,33 @@ class Pcolony:
             self.agents[ag_name].processWildcards(suffixList, myId)
     # end processWildcards()
 
-    def print_colony_components(self, name = "Pcolony", indentSpacesNr = 0):
+    def print_colony_components(self, name = "Pcolony", indentSpacesNr = 0, printDetails = False):
         """Prints the given Pcolony as a tree, to aid in inspecting the internal structure of the parsed colony
 
         :colony: Pcolony type object used as input
+        :indentSpaces: The number of indent spaces that are added for P swarm components or P colony components
+        :printDetails: True / False, Whether or not to print P colony details (alphabet, capacity, programs)
 
         """
 
         print(" " * indentSpacesNr + "%s = {" % name)
-        print(" " * (indentSpacesNr + 4) + "A = %s" % self.A)
-        print(" " * (indentSpacesNr + 4) + "e = %s" % self.e)
-        print(" " * (indentSpacesNr + 4) + "f = %s" % self.f)
-        print(" " * (indentSpacesNr + 4) + "n = %s" % self.n)
+        if (printDetails):
+            print(" " * (indentSpacesNr + 4) + "A = %s" % self.A)
+            print(" " * (indentSpacesNr + 4) + "e = %s" % self.e)
+            print(" " * (indentSpacesNr + 4) + "f = %s" % self.f)
+            print(" " * (indentSpacesNr + 4) + "n = %s" % self.n)
         # print out only a:3 b:5 (None is used for printing all objects, not just the most common n)
         print(" " * (indentSpacesNr + 4) + "env = %s" % self.env.most_common(None))
-        print(" " * (indentSpacesNr + 4) + "B = %s" % self.B)
+        if (printDetails):
+            print(" " * (indentSpacesNr + 4) + "B = %s" % self.B)
         for ag_name in self.B:
             print(" " * (indentSpacesNr + 8) + "%s = (" % ag_name);
             # print out only a:3 b:5 (None is used for printing all objects, not just the most common n)
             print(" " * (indentSpacesNr + 12) + "obj = %s" % self.agents[ag_name].obj.most_common(None))
+
+            if (not printDetails):
+                continue
+
             print(" " * (indentSpacesNr + 12) + "programs = (")
             for i, program in enumerate(self.agents[ag_name].programs):
                 print(" " * (indentSpacesNr + 16) + "P%d = <" % i)
@@ -1461,12 +1471,13 @@ def readInputFile(filename, printTokens=False):
 
     index, end_result = process_tokens(tokens, None, 0)
 
-    print("\n\n");
-    if (type(end_result) == Pswarm):
-        end_result.print_swarm_components()
-    elif (type(end_result == Pcolony)):
-        end_result.print_colony_components()
-    print("\n\n");
+    if (logLevel <= logging.WARNING):
+        print("\n\n");
+        if (type(end_result) == Pswarm):
+            end_result.print_swarm_components(printDetails=True)
+        elif (type(end_result == Pcolony)):
+            end_result.print_colony_components(printDetails=True)
+        print("\n\n");
 
     return end_result
 #end readInputFile()
@@ -1574,10 +1585,12 @@ if (__name__ == "__main__"):
             secondary_log_colors={},
             style='%'
     )
-    if ('--debug' in sys.argv):
-        colorlog.basicConfig(stream = sys.stdout, level = logging.DEBUG)
-    else:
-        colorlog.basicConfig(stream = sys.stdout, level = logging.INFO) # default log level
+    if ('--debug' in sys.argv or '-v' in sys.argv):
+        logLevel = logging.DEBUG
+    elif ('--error' in sys.argv or '-v0' in sys.argv):
+        logLevel = logging.ERROR
+
+    colorlog.basicConfig(stream = sys.stdout, level = logLevel)
     stream = colorlog.root.handlers[0]
     stream.setFormatter(formatter);
 
