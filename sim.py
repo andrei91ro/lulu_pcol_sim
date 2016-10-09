@@ -219,8 +219,8 @@ class Pcolony:
     # constructor (members are defined inside in order to avoid alteration caused by other objects of this type)
     def __init__(self):
         self.A = []  # alphabet (list of objects)
-        self.e = '' # elementary object
-        self.f = '' # final object
+        self.e = 'e' # elementary object, 'e' by default
+        self.f = 'f' # final object, 'f' by default (does not have any special meaning)
         self.n = 0   # capacity
         self.env = collections.Counter() # store objects found in the environement
         self.B = []  # list of agent names
