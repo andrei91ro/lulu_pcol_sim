@@ -111,8 +111,26 @@ class Pswarm():
                 # skip this colony
                 continue
 
+            # check for runnable agents within this P colony
+            self.colonies[colony_name].checkAgents()
+
+            # if there are no runnable agents
+            if (len(self.colonies[colony_name].runnableAgents) == 0):
+                self.simResult[colony_name] = SimStepResult.no_more_executables
+        # end for check colonies
+
+        # execute all P colonies that have at least one executable agent
+        for colony_name in self.C:
+            # if this colony has ran all it's simulation steps (no more executables)
+            if (self.simResult[colony_name] == SimStepResult.no_more_executables):
+                # skip this colony
+                continue
+
             logging.info("Running simulation step from %s Pcolony" % colony_name)
-            self.simResult[colony_name] = self.colonies[colony_name].runSimulationStep()
+            #self.simResult[colony_name] = self.colonies[colony_name].runSimulationStep()
+
+            # run all executable agents
+            self.simResult[colony_name] = self.colonies[colony_name].executeAgents()
 
             if (printEachColonyState):
                 self.colonies[colony_name].print_colony_components(name = colony_name)
@@ -214,6 +232,7 @@ class Pcolony:
         self.B = []  # list of agent names
         self.agents = {} # agent dictionary (agent_name : Agent_object)
         self.parentSwarm = None
+        self.runnableAgents = [] # the list of agents that have an executable program
     #end __init__
 
     def getDeepCopyOf(self, parent_swarm = None):
@@ -287,32 +306,45 @@ class Pcolony:
 
     #end print_colony_components()
 
-    def runSimulationStep(self):
-        """Runs 1 simulation step consisting of chosing (if available) and executing a program for each agent in the colony
-        
-        :returns: SimStepResult values depending on the succes of the current run """
-        
-        runnableAgents = [] # the list of agents that have an executable program
-
+    def checkAgents(self):
         for agent_name, agent in self.agents.items():
             logging.debug("Checking agent %s" % agent_name)
             # if the agent choses 1 program to execute
             if (agent.choseProgram()):
                 logging.info("Agent %s is runnable" % agent_name)
-                runnableAgents.append(agent_name)
-        
-        logging.info("%d runnable agents" % len(runnableAgents))
-        
-        # if there are no runnable agents
-        if (len(runnableAgents) == 0):
-            return SimStepResult.no_more_executables # simulation cannot continue
+                self.runnableAgents.append(agent_name)
 
-        for agent_name in runnableAgents:
+        logging.info("%d runnable agents" % len(self.runnableAgents))
+    # end checkAgents()
+
+    def executeAgents(self):
+        for agent_name in self.runnableAgents:
             logging.info("Running Agent %s  P%d = < %s >" % (agent_name, self.agents[agent_name].chosenProgramNr, self.agents[agent_name].programs[self.agents[agent_name].chosenProgramNr].print(onlyExecutable = True)))
             # if there were errors encountered during program execution
             if (self.agents[agent_name].executeProgram() == False):
                 logging.error("Execution failed for agent %s, stopping simulation" % agent_name)
                 return SimStepResult.error
+
+        # reset self.runnableAgents[]
+        self.runnableAgents = []
+    # end executeAgents()
+
+
+    def runSimulationStep(self):
+        """Runs 1 simulation step consisting of chosing (if available) and executing a program for each agent in the colony
+        
+        :returns: SimStepResult values depending on the succes of the current run """
+
+        # check all agents to determine the executable agents
+        self.checkAgents()
+
+        # if there are no runnable agents
+        if (len(self.runnableAgents) == 0):
+            return SimStepResult.no_more_executables # simulation cannot continue
+
+        # run all executable agents and stop in case of errors
+        if (self.executeAgents() == SimStepResult.error):
+            return SimStepResult.error
 
         logging.info("Simulation step finished succesfully")
         return SimStepResult.finished
