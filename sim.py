@@ -4,7 +4,6 @@ import collections  # for named tuple && Counter (multisets)
 import re  # for regex
 from enum import Enum # for enumerations (enum from C)
 import logging # for logging functions
-import colorlog # colors log output
 import random # for stochastic chosing of programs
 import time # for time.time()
 #from copy import deepcopy # for deepcopy (value not reference as = does for objects)
@@ -1571,28 +1570,36 @@ typedef enum _rule_type {
 if (__name__ == "__main__"):
     import sys # for argv
 
-    formatter = colorlog.ColoredFormatter(
-            "%(log_color)s%(levelname)-8s %(message)s %(reset)s",
-            datefmt=None,
-            reset=True,
-            log_colors={
-                    'DEBUG':    'cyan',
-                    'INFO':     'green',
-                    'WARNING':  'yellow',
-                    'ERROR':    'red',
-                    'CRITICAL': 'red,bg_white',
-            },
-            secondary_log_colors={},
-            style='%'
-    )
     if ('--debug' in sys.argv or '-v' in sys.argv):
         logLevel = logging.DEBUG
     elif ('--error' in sys.argv or '-v0' in sys.argv):
         logLevel = logging.ERROR
 
-    colorlog.basicConfig(stream = sys.stdout, level = logLevel)
-    stream = colorlog.root.handlers[0]
-    stream.setFormatter(formatter);
+    try:
+        import colorlog # colors log output
+
+        formatter = colorlog.ColoredFormatter(
+                "%(log_color)s%(levelname)-8s %(message)s %(reset)s",
+                datefmt=None,
+                reset=True,
+                log_colors={
+                        'DEBUG':    'cyan',
+                        'INFO':     'green',
+                        'WARNING':  'yellow',
+                        'ERROR':    'red',
+                        'CRITICAL': 'red,bg_white',
+                },
+                secondary_log_colors={},
+                style='%'
+        )
+
+        colorlog.basicConfig(stream = sys.stdout, level = logLevel)
+        stream = colorlog.root.handlers[0]
+        stream.setFormatter(formatter);
+
+    # colorlog not available
+    except ImportError:
+        logging.basicConfig(format='%(levelname)s:%(message)s', level = logLevel)
 
     if (len(sys.argv) < 2):
         logging.error("Expected input file path as parameter")
