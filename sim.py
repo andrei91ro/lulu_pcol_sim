@@ -97,7 +97,7 @@ class Pswarm():
         return newSwarm
     # end getDeepCopyOf()
 
-    def print_swarm_components(self):
+    def print_swarm_components(self, printDetails = False):
         """Print the contents of this Pswarm"""
         print("Pswarm = {")
         print("    global_env = %s" % self.global_env.most_common(None))
@@ -106,7 +106,7 @@ class Pswarm():
         print("    C = %s" % self.C)
         for colony_name in self.C:
             print() # add a line betwen colonies
-            self.colonies[colony_name].print_colony_components(colony_name, indentSpacesNr = 8)
+            self.colonies[colony_name].print_colony_components(colony_name, indentSpacesNr = 8, printDetails = printDetails)
         print("}")
     # end print_swarm_components()
 
