@@ -122,8 +122,26 @@ class Pswarm():
                 # skip this colony
                 continue
 
+            # check for runnable agents within this P colony
+            self.colonies[colony_name].checkAgents()
+
+            # if there are no runnable agents
+            if (len(self.colonies[colony_name].runnableAgents) == 0):
+                self.simResult[colony_name] = SimStepResult.no_more_executables
+        # end for check colonies
+
+        # execute all P colonies that have at least one executable agent
+        for colony_name in self.C:
+            # if this colony has ran all it's simulation steps (no more executables)
+            if (self.simResult[colony_name] == SimStepResult.no_more_executables):
+                # skip this colony
+                continue
+
             logging.info("Running simulation step from %s Pcolony" % colony_name)
-            self.simResult[colony_name] = self.colonies[colony_name].runSimulationStep()
+            #self.simResult[colony_name] = self.colonies[colony_name].runSimulationStep()
+
+            # run all executable agents
+            self.simResult[colony_name] = self.colonies[colony_name].executeAgents()
 
             if (printEachColonyState):
                 self.colonies[colony_name].print_colony_components(name = colony_name)
@@ -225,6 +243,7 @@ class Pcolony:
         self.B = []  # list of agent names
         self.agents = {} # agent dictionary (agent_name : Agent_object)
         self.parentSwarm = None
+        self.runnableAgents = [] # the list of agents that have an executable program
     #end __init__
 
     def getDeepCopyOf(self, parent_swarm = None):
@@ -306,32 +325,45 @@ class Pcolony:
 
     #end print_colony_components()
 
-    def runSimulationStep(self):
-        """Runs 1 simulation step consisting of chosing (if available) and executing a program for each agent in the colony
-        
-        :returns: SimStepResult values depending on the succes of the current run """
-        
-        runnableAgents = [] # the list of agents that have an executable program
-
+    def checkAgents(self):
         for agent_name, agent in self.agents.items():
             logging.debug("Checking agent %s" % agent_name)
             # if the agent choses 1 program to execute
             if (agent.choseProgram()):
                 logging.info("Agent %s is runnable" % agent_name)
-                runnableAgents.append(agent_name)
-        
-        logging.info("%d runnable agents" % len(runnableAgents))
-        
-        # if there are no runnable agents
-        if (len(runnableAgents) == 0):
-            return SimStepResult.no_more_executables # simulation cannot continue
+                self.runnableAgents.append(agent_name)
 
-        for agent_name in runnableAgents:
+        logging.info("%d runnable agents" % len(self.runnableAgents))
+    # end checkAgents()
+
+    def executeAgents(self):
+        for agent_name in self.runnableAgents:
             logging.info("Running Agent %s  P%d = < %s >" % (agent_name, self.agents[agent_name].chosenProgramNr, self.agents[agent_name].programs[self.agents[agent_name].chosenProgramNr].print(onlyExecutable = True)))
             # if there were errors encountered during program execution
             if (self.agents[agent_name].executeProgram() == False):
                 logging.error("Execution failed for agent %s, stopping simulation" % agent_name)
                 return SimStepResult.error
+
+        # reset self.runnableAgents[]
+        self.runnableAgents = []
+    # end executeAgents()
+
+
+    def runSimulationStep(self):
+        """Runs 1 simulation step consisting of chosing (if available) and executing a program for each agent in the colony
+        
+        :returns: SimStepResult values depending on the succes of the current run """
+
+        # check all agents to determine the executable agents
+        self.checkAgents()
+
+        # if there are no runnable agents
+        if (len(self.runnableAgents) == 0):
+            return SimStepResult.no_more_executables # simulation cannot continue
+
+        # run all executable agents and stop in case of errors
+        if (self.executeAgents() == SimStepResult.error):
+            return SimStepResult.error
 
         logging.info("Simulation step finished succesfully")
         return SimStepResult.finished
@@ -534,27 +566,56 @@ class Agent:
 
                 # if this is a conditional rule
                 else:
-                    # all types of rules require the left hand side obj to be available in the agent
-                    # if not in the prioritary rule then at least in the alternative rule
-                    if ((rule.lhs not in self.obj) and (rule.alt_lhs not in self.obj)):
-                        executable = False;
-                        break; # stop checking
-                    #if the first rule is of communication type and the right hand side object is not in the environement
-                    #   or the first rule is of exteroceptive type and the right hand side object is not in the global environement
-                    #   or the first rule is of in_exteroceptive type and the right hand side object is not in the INPUT global environement
-                    #   or the first rule is of out_exteroceptive type and the right hand side object is not in the OUTPUT global environement
-                    if ( (rule.type == RuleType.communication and rule.rhs not in self.colony.env)
-                            or (rule.type == RuleType.exteroceptive and rule.rhs not in self.colony.parentSwarm.global_env)
-                            or (rule.type == RuleType.in_exteroceptive and rule.rhs not in self.colony.parentSwarm.in_global_env)
-                            or (rule.type == RuleType.out_exteroceptive and rule.rhs not in self.colony.parentSwarm.out_global_env) ):
-                        # the first rule cannot be executed so we check the second rule
+                    # we first check the first part of the conditional rule (as a normal rule)
 
-                        # if the second rule is of communication type then the right hand side object has to be in the environement
+                    # all types of rules require the left hand side obj to be available in the agent
+                    if (rule.lhs not in self.obj):
+                        executable = False;
+
+                    # communication rules require the right hand side obj to be available in the environement
+                    if (rule.type == RuleType.communication and rule.rhs not in self.colony.env):
+                        executable = False;
+
+                    # exteroceptive rules require the right hand side obj to be available in the global Pswarm environment
+                    if (rule.type == RuleType.exteroceptive and rule.rhs not in self.colony.parentSwarm.global_env):
+                        executable = False;
+
+                    # in_exteroceptive rules require the right hand side obj to be available in the in_global Pswarm environment
+                    if (rule.type == RuleType.in_exteroceptive and rule.rhs not in self.colony.parentSwarm.in_global_env):
+                        executable = False;
+
+                    # out_exteroceptive rules require the right hand side obj to be available in the out_global Pswarm environment
+                    if (rule.type == RuleType.out_exteroceptive and rule.rhs not in self.colony.parentSwarm.out_global_env):
+                        executable = False;
+
+                    # if the first part of the conditional rule was executable
+                    if (executable):
+                        rule.exec_rule_nr = RuleExecOption.first # the only option available
+
+                        # if we reach this step, then the rule is executable
+                        required_obj[rule.lhs] += 1 # all rules need the lhs to be in obj
+
+                        if (rule.type == RuleType.communication):
+                            required_env[rule.rhs] += 1 # rhs part of the rule has to be in the Pcolony environment
+
+                        if (rule.type == RuleType.exteroceptive):
+                            required_global_env[rule.rhs] += 1 # rhs part of the rule has to be in the Pswarm global environment
+
+                    # otherwise check the second part of the conditional rule
+                    else:
+                        # reconsider this program as executable
+                        executable = True
+                        # all types of rules require the left hand side obj to be available in the agent
+                        if (rule.alt_lhs not in self.obj):
+                            executable = False;
+                            break; # stop checking
+
+                        # communication rules require the right hand side obj to be available in the environement
                         if (rule.alt_type == RuleType.communication and rule.alt_rhs not in self.colony.env):
                             executable = False;
                             break;
 
-                        # if the second rule is of exteroceptive type then the right hand side object has to be in the global Pswarm environement
+                        # exteroceptive rules require the right hand side obj to be available in the global Pswarm environment
                         if (rule.alt_type == RuleType.exteroceptive and rule.alt_rhs not in self.colony.parentSwarm.global_env):
                             executable = False;
                             break;
@@ -569,44 +630,22 @@ class Agent:
                             executable = False;
                             break;
 
-                       # the second rule can be executed (and the first cannot)
-                        else:
-                            rule.exec_rule_nr = RuleExecOption.second # mark the second rule as executable
-
-                            # if we reach this step, then the rule is executable
-                            required_obj[rule.alt_lhs] += 1 # all rules need the alt_lhs to be in obj
-
-                            if (rule.alt_type == RuleType.communication):
-                                required_env[rule.alt_rhs] += 1 # alt_rhs part of the rule has to be in the Pcolony environment
-
-                            if (rule.alt_type == RuleType.exteroceptive):
-                                required_global_env[rule.alt_rhs] += 1 # alt_rhs part of the rule has to be in the Pswarm global environment
-
-                            if (rule.alt_type == RuleType.in_exteroceptive):
-                                required_in_global_env[rule.alt_rhs] += 1 # alt_rhs part of the rule has to be in the Pswarm INPUT global environment
-
-                            if (rule.alt_type == RuleType.out_exteroceptive):
-                                required_out_global_env[rule.alt_rhs] += 1 # alt_rhs part of the rule has to be in the Pswarm OUTPUT global environment
-
-                    # the first rule can be executed
-                    else:
-                        rule.exec_rule_nr = RuleExecOption.first # mark the first rule as executable
+                        rule.exec_rule_nr = RuleExecOption.second # the only option available
 
                         # if we reach this step, then the rule is executable
-                        required_obj[rule.lhs] += 1 # all rules need the lhs to be in obj
+                        required_obj[rule.alt_lhs] += 1 # all rules need the alt_lhs to be in obj
 
-                        if (rule.type == RuleType.communication):
-                            required_env[rule.rhs] += 1 # rhs part of the rule has to be in the Pcolony environment
+                        if (rule.alt_type == RuleType.communication):
+                            required_env[rule.alt_rhs] += 1 # alt_rhs part of the rule has to be in the Pcolony environment
 
-                        if (rule.type == RuleType.exteroceptive):
-                            required_global_env[rule.rhs] += 1 # rhs part of the rule has to be in the Pswarm global environment
+                        if (rule.alt_type == RuleType.exteroceptive):
+                            required_global_env[rule.alt_rhs] += 1 # alt_rhs part of the rule has to be in the Pswarm global environment
 
-                        if (rule.type == RuleType.in_exteroceptive):
-                            required_in_global_env[rule.rhs] += 1 # rhs part of the rule has to be in the Pswarm INPUT global environment
+                        if (rule.alt_type == RuleType.in_exteroceptive):
+                            required_in_global_env[rule.alt_rhs] += 1 # alt_rhs part of the rule has to be in the Pswarm INPUT global environment
 
-                        if (rule.type == RuleType.out_exteroceptive):
-                            required_out_global_env[rule.rhs] += 1 # rhs part of the rule has to be in the Pswarm OUTPUT global environment
-
+                        if (rule.alt_type == RuleType.out_exteroceptive):
+                            required_out_global_env[rule.alt_rhs] += 1 # alt_rhs part of the rule has to be in the Pswarm OUTPUT global environment
             #end for rule
 
             # if all previous rule tests confirm that this program is executable
@@ -614,7 +653,7 @@ class Agent:
                 # check that the Agent obj requirements of the program are met
                 for k, v in required_obj.items():
                     if (self.obj[k] < v):
-                        logging.debug("required_obj check failed")
+                        logging.debug("required_obj check failed, required_obj = %s, obj = %s" % (required_obj, self.obj))
                         executable = False # this program is not executable, check another program
 
                 # if e object is among the required objects in the Pcolony environment
@@ -624,7 +663,7 @@ class Agent:
                 # check that the Pcolony env requirements of the program are met
                 for k, v in required_env.items():
                     if (self.colony.env[k] < v):
-                        logging.debug("required_env check failed")
+                        logging.debug("required_env check failed, required_env = %s, env = %s" % (required_env, self.colony.env))
                         executable = False # this program is not executable, check another program
 
                 # if e object is among the required objects in the Pswarm global_environment
@@ -634,7 +673,7 @@ class Agent:
                 # check that the Pswarm global_env requirements of the program are met
                 for k, v in required_global_env.items():
                     if (self.colony.parentSwarm.global_env[k] < v):
-                        logging.debug("required_global_env check failed")
+                        logging.debug("required_global_env check failed, required_global_env = %s, global_env = %s" % (required_global_env, self.colony.parentSwarm.global_env))
                         executable = False # this program is not executable, check another program
 
                 # if e object is among the required objects in the Pswarm INPUT global_environment
